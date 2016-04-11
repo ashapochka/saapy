@@ -1,0 +1,8 @@
+invoke # task automation tool, see tasks.py for project task definitions
+pytest # test framework of choice for the library
+pytest-flakes # code quality checking
+pytest-pep8 # check for pep8
+pytest-cov # calculate test coverage
+pytest-bdd # behavior driven tests
+pytest-cache # test results caching (pep8 uses it)
+tox # test automation tool
