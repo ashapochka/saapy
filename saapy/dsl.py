@@ -35,7 +35,9 @@ class AssessmentModel:
     def uncertainties(self, *names):
         return [self._node(name, Uncertainty) for name in names]
 
-    def relate(self, source_nodes: list, target_nodes: list, relation=None) -> None:
+    def relate(self, source_nodes: list,
+               target_nodes: list,
+               relation=None) -> None:
         pass
 
     def _node(self, name, node_type):
@@ -43,12 +45,14 @@ class AssessmentModel:
             node_attrs = self._influence_graph[name]
             current_node_object = node_attrs['node_object']
             if not isinstance(current_node_object, node_type):
-                raise TypeError("Selected node type expected {0) but found {1}".format(
+                error_msg = "Selected node type expected {0) but found {1}"
+                raise TypeError(error_msg.format(
                     node_type.__name__, type(current_node_object).__name__))
             node_object = current_node_object
         else:
             new_node_object = node_type()
-            self._influence_graph.add_node(name, {'node_object': new_node_object})
+            self._influence_graph.add_node(
+                name, {'node_object': new_node_object})
             node_object = new_node_object
         return node_object
 

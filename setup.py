@@ -21,5 +21,5 @@ setup(
     packages=find_packages(exclude=('tests', 'docs'))
 )
 
-# TODO: enhance packaging and add to PYPI, ref https://github.com/pypa/sampleproject
-
+# TODO: enhance packaging and add to PYPI,
+# ref https://github.com/pypa/sampleproject

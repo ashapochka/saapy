@@ -36,4 +36,5 @@ def codecheck():
     """
     run("py.test --pep8 -m pep8")
 
-# TODO: add tox configuration and link to travis-ci, ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
+# TODO: add tox configuration and link to travis-ci,
+# ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
