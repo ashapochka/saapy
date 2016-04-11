@@ -1,3 +1,5 @@
+# project sdlc toolset
+
 invoke # task automation tool, see tasks.py for project task definitions
 pytest # test framework of choice for the library
 pytest-flakes # code quality checking
@@ -6,3 +8,7 @@ pytest-cov # calculate test coverage
 pytest-bdd # behavior driven tests
 pytest-cache # test results caching (pep8 uses it)
 tox # test automation tool
+
+# core project dependencies
+networkx # support for graph based domain model
+
