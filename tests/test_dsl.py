@@ -12,3 +12,5 @@ def test_basic_model():
     total_value = m.uncertainties("Total Value")
     total_value.depends_on(dev_costs, support_costs,
                            fun_suitability, prod_quality)
+    assert 6 == len(m.graph)
+    assert 8 == m.graph.size()
