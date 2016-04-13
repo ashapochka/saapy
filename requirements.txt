@@ -11,4 +11,21 @@ tox # test automation tool
 
 # core project dependencies
 networkx # support for graph based domain model
+scipy # mathematics platform
+pandas # tabular data crunching
+sympy # symbolic math
+simpy # simulations
+matplotlib # graphing
+seaborn # enhanced graphing on top of matplotlib
+python-Levenshtein # fast string comparison
+fuzzywuzzy #fuzzy string matching with heuristics based on difflib
+numexpr # fast numerical array computations
+xlwings # excel python scripting
+python-pptx # powerpoint support
+pillow # graphics manipulation
+statsmodels # statistical models
+scikit-learn # machine learning support
+pymc # Bayesian estimation
+
+
 
