@@ -10,6 +10,7 @@ pytest-cache # test results caching (pep8 uses it)
 tox # test automation tool
 
 # core project dependencies
+keyring # access to credentials stored in the os secure local store
 networkx # support for graph based domain model
 scipy # mathematics platform
 pandas # tabular data crunching
@@ -26,6 +27,11 @@ pillow # graphics manipulation
 statsmodels # statistical models
 scikit-learn # machine learning support
 pymc # Bayesian estimation
+nltk # language analysis, also need to install nltk data as described on nltk site
+
+# database drivers
+neo4j-driver #neo4j official driver
+
 
 
 
