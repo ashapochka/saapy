@@ -11,6 +11,8 @@ tox # test automation tool
 
 # core project dependencies
 keyring # access to credentials stored in the os secure local store
+anyconfig # project configuration files in yaml
+requests # enhanced http library
 networkx # support for graph based domain model
 scipy # mathematics platform
 pandas # tabular data crunching
