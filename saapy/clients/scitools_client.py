@@ -1,21 +1,27 @@
 import understand
 import sys
 from traceback import print_exc
+from pathlib import Path
 
 
-def safe_open_understand(dbpath):
-    """
-    opens scitools understand database safely catching and printing possible
-    UnderstandError
-    :param dbpath: local file path to the understand database
-    :return: open database or None
-    """
-    try:
-        db = understand.open(dbpath)
-    except understand.UnderstandError:
-        db = None
-        print_exc(file=sys.stdout)
-    return db
+class ScitoolsClient:
+    def __init__(self, udb_path):
+        self.udb_path = Path(udb_path)
+        self.udb = None
+
+    def connect(self):
+        """
+        opens scitools understand database safely catching and printing possible
+        UnderstandError
+        :param dbpath: local file path to the understand database
+        :return: open database or None
+        """
+        try:
+            self.udb = understand.open(str(self.udb_path))
+        except understand.UnderstandError:
+            self.udb = None
+            print_exc(file=sys.stdout)
+        return self.udb
 
 
 def inspect_refs(entity):
