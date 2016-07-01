@@ -18,7 +18,7 @@ class Workspace:
         self.work_dir_part = Path(work_dir or name)
         self.work_dir = self.local_root_dir / self.work_dir_part
         self.conf_dir = self.work_dir / "conf"
-        self.conf_file = self.conf_dir / "workspace.conf"
+        self.conf_file = self.conf_dir / "workspace.yaml"
         if not dry_run:
             self.work_dir.mkdir(exist_ok=True)
             self.conf_dir.mkdir(exist_ok=True)
@@ -28,11 +28,11 @@ class Workspace:
                 local_dev:
                     neo4j_service: local_neo4j
                 local_neo4j:
-                    service_type: neo4j
+                    service_type: neo4j_service
                     service_url: http://localhost:7474
                     user_name: neo4j
                 """, encoding="utf-8")
-            self.configuration = anyconfig.load(self.conf_file)
+            self.configuration = anyconfig.load(str(self.conf_file))
 
     def __str__(self):
         return "<Workspace name='{0}' work_dir={1}>".format(self.name,
@@ -77,8 +77,34 @@ class Workspace:
     def abs_path_str(self, filepath):
         return str(self.abs_path(filepath))
 
+    def update_configuration(self, update_dict):
+        self.configuration.update(update_dict)
+
+    def update_service_conf(self, service, service_conf, password=None):
+        self.update_configuration({service: service_conf})
+        if password and "user_name" in service_conf:
+            self.set_password(service, service_conf["user_name"], password)
+
     def save_configuration(self):
-        anyconfig.dump(self.configuration, self.conf_file)
+        anyconfig.dump(self.configuration, str(self.conf_file), canonical=False)
+
+    def set_password(self, service, user, password):
+        return keyring.set_password(service, user, password)
+
+    def get_password(self, service, user):
+        return keyring.get_password(service, user)
+
+    def get_service_credentials(self, service):
+        user = self.configuration[service]["user_name"]
+        password = self.get_password(service, user)
+        return user, password
+
+    def get_service_url(self, service):
+        url = self.configuration[service]["service_url"]
+        return url
+
+    def delete_password(self, service, user):
+        return keyring.delete_password(service, user)
 
     def set_neo4j_password(self, neo4j_service, old_password, new_password):
         """
