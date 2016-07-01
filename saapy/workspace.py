@@ -39,20 +39,38 @@ class Workspace:
                                                             self.work_dir)
 
     @classmethod
-    def from_home(cls, name, work_dir=None, dry_run=False):
+    def from_home(cls, name, rel_root_dir=None, work_dir=None, dry_run=False):
         """
-        creates workspace with root in the current user home directory
+        creates workspace with root in the user home directory
         :param name: workspace name
-        :param work_dir: workspace directory relative to user home,
+        :param rel_root_dir: workspaces root dir relative to user home
+         if it is None the root is user home, otherwise $HOME/rel_root_dir
+        :param work_dir: workspace directory relative to root,
         substituted with ws name if empty
         :param dry_run: if true skips file system manipulations
         :return: initialized workspace
         """
-        return cls(name, Path.home(), work_dir=work_dir, dry_run=dry_run)
+        root = Path.home()
+        if rel_root_dir:
+            root = root / rel_root_dir
+        return cls(name, root, work_dir=work_dir, dry_run=dry_run)
 
     @classmethod
-    def from_current(cls, name, work_dir=None, dry_run=False):
-        return cls(name, Path("."), work_dir=work_dir, dry_run=dry_run)
+    def from_current(cls, name, rel_root_dir=None, work_dir=None, dry_run=False):
+        """
+        creates workspace with root in the current directory
+        :param name: workspace name
+        :param rel_root_dir: workspaces root dir relative to current directory
+         if it is None the root is current directory, otherwise ./rel_root_dir
+        :param work_dir: workspace directory relative to root,
+        substituted with ws name if empty
+        :param dry_run: if true skips file system manipulations
+        :return: initialized workspace
+        """
+        root = Path(".")
+        if rel_root_dir:
+            root = root / rel_root_dir
+        return cls(name, root, work_dir=work_dir, dry_run=dry_run)
 
     def touch(self, filename):
         filepath = self.work_dir / filename
