@@ -12,7 +12,8 @@ class Workspace:
     with analyzed files.
     """
 
-    def __init__(self, name, local_root_dir, work_dir=None, dry_run=False):
+    def __init__(self, name, local_root_dir, work_dir=None, dry_run=False,
+                 configuration_text=None):
         self.name = name
         self.local_root_dir = Path(local_root_dir).resolve()
         self.work_dir_part = Path(work_dir or name)
@@ -23,15 +24,17 @@ class Workspace:
             self.work_dir.mkdir(exist_ok=True)
             self.conf_dir.mkdir(exist_ok=True)
             if not self.conf_file.is_file():
-                self.conf_file.write_text("""
-                active_profile: local_dev
-                local_dev:
-                    neo4j_service: local_neo4j
-                local_neo4j:
-                    service_type: neo4j_service
-                    service_url: http://localhost:7474
-                    user_name: neo4j
-                """, encoding="utf-8")
+                if not configuration_text:
+                    configuration_text = """
+active_profile: local_dev
+local_dev:
+    neo4j_service: local_neo4j
+local_neo4j:
+    service_type: neo4j_service
+    service_url: http://localhost:7474
+    user_name: neo4j
+"""
+                self.conf_file.write_text(configuration_text, encoding="utf-8")
             self.configuration = anyconfig.load(str(self.conf_file))
 
     def __str__(self):
@@ -39,7 +42,8 @@ class Workspace:
                                                             self.work_dir)
 
     @classmethod
-    def from_home(cls, name, rel_root_dir=None, work_dir=None, dry_run=False):
+    def from_home(cls, name, rel_root_dir=None, work_dir=None, dry_run=False,
+                  configuration_text=None):
         """
         creates workspace with root in the user home directory
         :param name: workspace name
@@ -53,10 +57,12 @@ class Workspace:
         root = Path.home()
         if rel_root_dir:
             root = root / rel_root_dir
-        return cls(name, root, work_dir=work_dir, dry_run=dry_run)
+        return cls(name, root, work_dir=work_dir, dry_run=dry_run,
+                   configuration_text=configuration_text)
 
     @classmethod
-    def from_current(cls, name, rel_root_dir=None, work_dir=None, dry_run=False):
+    def from_current(cls, name, rel_root_dir=None, work_dir=None,
+                     dry_run=False, configuration_text=None):
         """
         creates workspace with root in the current directory
         :param name: workspace name
@@ -70,7 +76,8 @@ class Workspace:
         root = Path(".")
         if rel_root_dir:
             root = root / rel_root_dir
-        return cls(name, root, work_dir=work_dir, dry_run=dry_run)
+        return cls(name, root, work_dir=work_dir, dry_run=dry_run,
+                   configuration_text=configuration_text)
 
     def touch(self, filename):
         filepath = self.work_dir / filename
@@ -106,10 +113,12 @@ class Workspace:
     def save_configuration(self):
         anyconfig.dump(self.configuration, str(self.conf_file), canonical=False)
 
-    def set_password(self, service, user, password):
+    @staticmethod
+    def set_password(service, user, password):
         return keyring.set_password(service, user, password)
 
-    def get_password(self, service, user):
+    @staticmethod
+    def get_password(service, user):
         return keyring.get_password(service, user)
 
     def get_service_credentials(self, service):
@@ -121,7 +130,8 @@ class Workspace:
         url = self.configuration[service]["service_url"]
         return url
 
-    def delete_password(self, service, user):
+    @staticmethod
+    def delete_password(service, user):
         return keyring.delete_password(service, user)
 
     def set_neo4j_password(self, neo4j_service, old_password, new_password):
