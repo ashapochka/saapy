@@ -1,1 +1,1 @@
-from .smoke import smoke
+from .workspace import Workspace
