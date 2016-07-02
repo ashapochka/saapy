@@ -1,2 +1,0 @@
-def smoke():
-    return "smoke"
