@@ -2,7 +2,7 @@ from invoke import task, run
 
 
 @task
-def hello():
+def hello(ctx):
     """
     checks invoke works
     :return: None
@@ -11,7 +11,7 @@ def hello():
 
 
 @task
-def deps():
+def deps(ctx):
     """
     installs dependencies listed in requirements.txt with pip
     :return: None
@@ -20,7 +20,7 @@ def deps():
 
 
 @task
-def test():
+def test(ctx):
     """
     runs tests for the library
     :return: None
@@ -29,7 +29,7 @@ def test():
 
 
 @task
-def codecheck():
+def codecheck(ctx):
     """
     runs code quality checks using pep8 and other tools
     :return: None
