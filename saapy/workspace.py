@@ -130,6 +130,15 @@ local_neo4j:
         url = self.configuration[service]["service_url"]
         return url
 
+    def get_service_path(self, service, resolve_relative=False):
+        path = self.configuration[service]["service_path"]
+        if resolve_relative:
+            path = self.abs_path_str(path)
+        return path
+
+    def get_service_type(self, service):
+        return self.configuration[service]["service_type"]
+
     @staticmethod
     def delete_password(service, user):
         return keyring.delete_password(service, user)

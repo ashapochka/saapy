@@ -31,10 +31,7 @@ statsmodels # statistical models
 scikit-learn # machine learning support
 pymc # Bayesian estimation
 nltk # language analysis, also need to install nltk data as described on nltk site
+gitpython # API to git repositories
 
 # database drivers
 neo4j-driver #neo4j official driver
-
-
-
-
