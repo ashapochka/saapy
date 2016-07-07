@@ -122,9 +122,12 @@ local_neo4j:
         return keyring.get_password(service, user)
 
     def get_service_credentials(self, service):
-        user = self.configuration[service]["user_name"]
-        password = self.get_password(service, user)
-        return user, password
+        try:
+            user = self.configuration[service]["user_name"]
+            password = self.get_password(service, user) if user else None
+            return user, password
+        except KeyError:
+            return None, None
 
     def get_service_url(self, service):
         url = self.configuration[service]["service_url"]

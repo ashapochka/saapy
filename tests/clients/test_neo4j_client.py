@@ -21,5 +21,5 @@ def test_run_in_tx(neo4j_client):
             params = dict(name=str(uuid.uuid4()))
             yield query, params
 
-    result_set = neo4j_client.run_in_tx(batch_job, chunk_size=16)
+    result_set = neo4j_client.run_in_tx(batch_job(), chunk_size=16)
     assert len(result_set) == 50

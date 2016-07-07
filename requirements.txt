@@ -32,6 +32,7 @@ scikit-learn # machine learning support
 pymc # Bayesian estimation
 nltk # language analysis, also need to install nltk data as described on nltk site
 gitpython # API to git repositories
+jira==1.0.7.dev20160607111203 # JIRA client API
 
 # database drivers
 neo4j-driver #neo4j official driver

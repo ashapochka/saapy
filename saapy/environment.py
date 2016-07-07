@@ -2,6 +2,7 @@ from .clients import SonarClient
 from .clients import Neo4jClient
 from .clients import GitClient
 from .clients import ScitoolsClient
+from .clients import JiraClient
 
 
 class Environment:
@@ -14,7 +15,8 @@ class Environment:
             neo4j_service=connect_neo4j,
             sonar_service=connect_sonar,
             git_local_service=connect_git,
-            scitools_local_service=connect_scitools
+            scitools_local_service=connect_scitools,
+            jira_service=connect_jira
         )
 
     def setup(self):
@@ -64,3 +66,11 @@ def connect_scitools(ws, service_name):
         return client
     else:
         return None
+
+
+def connect_jira(ws, service_name):
+    url = ws.get_service_url(service_name)
+    user, password = ws.get_service_credentials(service_name)
+    jira = JiraClient(url, user, password)
+    jira.connect()
+    return jira
