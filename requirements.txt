@@ -11,6 +11,7 @@ pytest-datadir-ng # fixtures to access file system resources in tests
 tox # test automation tool
 
 # core project dependencies
+numpy # dependency from pymc
 keyring # access to credentials stored in the os secure local store
 anyconfig # project configuration files in yaml
 requests # enhanced http library
@@ -33,6 +34,7 @@ pymc # Bayesian estimation
 nltk # language analysis, also need to install nltk data as described on nltk site
 gitpython # API to git repositories
 jira==1.0.7.dev20160607111203 # JIRA client API
+jupyter # Jupyter notebook server
 
 # database drivers
 neo4j-driver #neo4j official driver
