@@ -26,12 +26,13 @@ class Workspace:
             if not self.conf_file.is_file():
                 if not configuration_text:
                     configuration_text = """
-active_profile: local_dev
+active_env: local_dev
 local_dev:
-    neo4j_service: local_neo4j
+    services:
+        - {neo4j: local_neo4j}
 local_neo4j:
     service_type: neo4j_service
-    service_url: http://localhost:7474
+    service_url: bolt://localhost
     user_name: neo4j
 """
                 self.conf_file.write_text(configuration_text, encoding="utf-8")
