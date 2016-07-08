@@ -51,6 +51,8 @@ class GitETL:
         issues = messages.str.findall(
             r"(?P<idempiere_jira_issue>IDEMPIERE-\d{1,4})")
         commits['idempiere_jira_issues'] = issues
+        commits[commits['idempiere_jira_issues'].apply(
+            lambda issues: (type(issues) == list and len(issues) > 0))]
         return commits
 
     @staticmethod
