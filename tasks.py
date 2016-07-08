@@ -36,5 +36,16 @@ def codecheck(ctx):
     """
     run("py.test --pep8 -m pep8")
 
+
+@task
+def jupyter(ctx):
+    """
+    starts jupyter notebook server on the 8888++ port
+    with its work directory in ./notebooks
+    :param ctx:
+    :return: None
+    """
+    run("jupyter-notebook --notebook-dir=notebooks")
+
 # TODO: add tox configuration and link to travis-ci,
 # ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
