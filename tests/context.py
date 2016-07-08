@@ -5,8 +5,8 @@
 #
 # import saapy
 
-import sys
+# import sys
 
 # add project root directory to python path to enable import of saapy
-if ".." not in sys.path:
-    sys.path.append('..')
+# if ".." not in sys.path:
+#     sys.path.append('..')
