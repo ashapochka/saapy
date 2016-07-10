@@ -1,8 +1,6 @@
 import sys
 from antlr4 import *
-from tsqlLexer import tsqlLexer
-from tsqlParser import tsqlParser
-from tsqlListener import tsqlListener
+from saapy.antlr.tsql.autogen import tsqlLexer, tsqlParser, tsqlListener
 
 
 class TsqlPrinter(tsqlListener):
