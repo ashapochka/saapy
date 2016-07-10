@@ -47,5 +47,15 @@ def jupyter(ctx):
     """
     run("jupyter-notebook --notebook-dir=notebooks")
 
+@task
+def gen_antlr_tsql(ctx):
+    """
+    generates python3 antlr parser code for T-SQL,
+    depends on antlr4 installed and visible in the system
+    :param ctx:
+    :return: None
+    """
+    run("antlr4 -Dlanguage=Python3 -o saapy/antlr/tsql/autogen antlr/grammars-v4/tsql/tsql.g4")
+
 # TODO: add tox configuration and link to travis-ci,
 # ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
