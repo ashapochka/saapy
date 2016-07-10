@@ -55,7 +55,9 @@ def gen_antlr_tsql(ctx):
     :param ctx:
     :return: None
     """
-    run("antlr4 -Dlanguage=Python3 -o saapy/antlr/tsql/autogen antlr/grammars-v4/tsql/tsql.g4")
+    target_dir = "saapy/antlr/tsql/autogen"
+    grammar_dir = "antlr/grammars-v4/tsql/tsql.g4"
+    run("antlr4 -Dlanguage=Python3 -o {0} {1}".format(target_dir, grammar_dir))
 
 # TODO: add tox configuration and link to travis-ci,
 # ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
