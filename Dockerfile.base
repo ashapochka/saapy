@@ -1,0 +1,43 @@
+FROM jupyter/base-notebook
+
+USER root
+
+# Install all OS dependencies for fully functional notebook server
+RUN apt-get update && apt-get install -yq --no-install-recommends \
+    git \
+    nano \
+    build-essential \
+    python-dev \
+    unzip \
+    libsm6 \
+    pandoc \
+    texlive-latex-base \
+    texlive-latex-extra \
+    texlive-fonts-extra \
+    texlive-fonts-recommended \
+    texlive-generic-recommended \
+    libxrender1 \
+    libssl-dev \
+    libffi-dev \
+    libssl-dev \
+    libxml2-dev \
+    libxslt1-dev \
+    libjpeg62-turbo-dev \
+    zlib1g-dev \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch back to jovyan to avoid accidental container runs as root
+USER $NB_USER
+
+COPY requirements.txt /
+RUN pip install -r /requirements.txt
+# COPY tasks/docked /tasks
+# RUN invoke setup_environment
+# WORKDIR /home/saapy/notebooks
+# COPY app /app
+
+# EXPOSE 8888
+# USER saapy
+
+# CMD ["jupyter", "notebook", "--notebook-dir=/home/saapy/notebooks"]
