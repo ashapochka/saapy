@@ -1,0 +1,52 @@
+version: '2'
+services:
+    www.local.tdback.space:
+        image: nginx:latest
+        ports:
+            - 80:80 # http
+            - 443:443 # https
+        volumes:
+            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/htmlo:/etc/nginx/html
+            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+            - $DOCKER_MOUNT_HOME/saapy/_shared/cert:/etc/nginx/cert
+            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/logs:/var/log/nginx
+    agraph.local.tdback.space:
+        image: neo4j:latest
+        ports:
+            - 7473:7473 # https
+            - 7474:7474 # http
+            - 7687:7687 # bolt
+        volumes:
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/data:/data
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/conf:/conf
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/logs:/logs
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/import:/import
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/ssl:/ssl
+        ulimits:
+            nofile:
+                soft: 40000
+                hard: 40000
+#    secret-vault:
+#        image: vault
+#        ports:
+#            - "8200:8200"
+#        cap_add:
+#            - IPC_LOCK
+#        environment:
+#            VAULT_LOCAL_CONFIG: '{"backend": {"file": {"path": "/vault/file"}}, "default_lease_ttl": "168h", "max_lease_ttl": "720h"}'
+#        volumes:
+#            - $DOCKER_MOUNT_HOME/saapy/secret-vault:/vault
+#        command: ["server -config=/vault/config/vault.hcl"]
+    notebook.local.tdback.space:
+        image: saapy
+        ports:
+            - 8888:8888 # http
+        volumes:
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/notebooks:/home/jovyan/work
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/scitools/users.txt:/home/jovyan/scitools/conf/license/users.txt:ro
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/scitools/Understand.conf:/home/jovyan/.config/SciTools/Understand.conf:ro
+            - $HOME/Dropbox/_projects/saapy/saapy:/opt/conda/lib/python3.5/site-packages/saapy
+            - $HOME/nltk_data:/home/jovyan/nltk_data
+        depends_on:
+            - agraph.local.tdback.space
+#            - secret-vault

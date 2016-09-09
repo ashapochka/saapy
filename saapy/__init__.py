@@ -6,3 +6,5 @@ from .environment import (
     connect_scitools,
     Environment
 )
+from .jupyter_support import configure_jupyter_environment
+from .secret_store import SecretStore

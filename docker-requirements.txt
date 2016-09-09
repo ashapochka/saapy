@@ -1,0 +1,9 @@
+invoke
+jupyter
+neo4j-driver
+requests
+numpy
+scipy
+matplotlib
+pandas
+gitpython

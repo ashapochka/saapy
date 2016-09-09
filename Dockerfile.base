@@ -10,12 +10,12 @@ RUN apt-get update && apt-get install -yq --no-install-recommends \
     python-dev \
     unzip \
     libsm6 \
-    pandoc \
-    texlive-latex-base \
-    texlive-latex-extra \
-    texlive-fonts-extra \
-    texlive-fonts-recommended \
-    texlive-generic-recommended \
+#    pandoc \
+#    texlive-latex-base \
+#    texlive-latex-extra \
+#    texlive-fonts-extra \
+#    texlive-fonts-recommended \
+#    texlive-generic-recommended \
     libxrender1 \
     libssl-dev \
     libffi-dev \

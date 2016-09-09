@@ -16,9 +16,9 @@ class Neo4jClient:
             auth=basic_auth(self.neo4j_user, self.neo4j_password))
         return self.neo4j_driver
 
-    def run_in_tx(self, batch, chunk_size=None, dry_run=False):
-        if not chunk_size:
-            chunk_size = sys.maxsize
+    def run_in_tx(self, batch, chunk_count=None, dry_run=False):
+        if not chunk_count:
+            chunk_count = sys.maxsize
         if isinstance(batch, Generator):
            it = batch
         elif isinstance(batch, Iterable):
@@ -27,7 +27,7 @@ class Neo4jClient:
                     yield j
             it = gen()
         else:
-            err = "batch_job can be iterable or callable while {0} passed"
+            err = "batch_job must be iterable or callable but {0} passed"
             err = err.format(type(batch))
             raise ValueError(err)
         if dry_run:
@@ -41,7 +41,7 @@ class Neo4jClient:
                 with session.begin_transaction() as tx:
                     chunk_i = 0
                     try:
-                        while chunk_i < chunk_size:
+                        while chunk_i < chunk_count:
                             # noinspection PyNoneFunctionAssignment
                             query, params = it.send(consumed_result)
                             result = tx.run(query, params)
