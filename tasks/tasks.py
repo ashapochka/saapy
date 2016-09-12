@@ -1,13 +1,23 @@
-from invoke import task
+from invoke import task, Collection
 from saapy import SecretStore
 from saapy.clients import ScitoolsClient
 from saapy.clients import Neo4jClient
+from saapy.clients import GitClient
 from saapy.etl import ScitoolsETL
+from saapy.etl import GitETL
 from timeit import default_timer as timer
 from datetime import timedelta
 import os
 import yaml
 import getpass
+import logging
+
+
+logging.basicConfig(style='{',
+                    format='{asctime}:{levelname}:{name}:{message}',
+                    level=logging.INFO)
+logger = logging.getLogger(__name__)
+logging.getLogger('neo4j.bolt').setLevel(logging.WARNING)
 
 
 @task
@@ -17,6 +27,11 @@ def hello(ctx):
     :return: None
     """
     print("Hello!")
+    logger.debug('debug message')
+    logger.info('info message')
+    logger.warn('warn message')
+    logger.error('error message')
+    logger.critical('critical message')
 
 
 @task
@@ -97,6 +112,16 @@ def dcompose_refresh(ctx):
     ctx.run('docker-compose rm -f')
     ctx.run('docker-compose up -d')
     ctx.run('docker-compose ps')
+
+
+# noinspection PyUnusedLocal
+@task
+def dcompose_restart(ctx):
+    ctx.run('docker-compose ps')
+    ctx.run('docker-compose stop')
+    ctx.run('docker-compose up -d')
+    ctx.run('docker-compose ps')
+
 
 
 @task
@@ -193,12 +218,8 @@ def export_scitools(ctx, udb_path, output_path):
             os.remove(output_path)
         except OSError as e:
             print("Error: %s - %s." % (e.filename, e.strerror))
-    scitools_client = ScitoolsClient(udb_path)
-    scitools_client.connect()
-    etl = ScitoolsETL(scitools_client.udb)
-    scitools_db = dict()
+    scitools_db = scitools_to_structs(udb_path)
     start = timer()
-    etl.transfer_to_struct_db(scitools_db)
     with open(output_path, 'w') as output_stream:
         yaml.dump(scitools_db, output_stream)
     end = timer()
@@ -206,19 +227,81 @@ def export_scitools(ctx, udb_path, output_path):
     print('transfer time:', timedelta(seconds=execution_time))
 
 
+def scitools_to_structs(udb_path):
+    scitools_client = ScitoolsClient(udb_path)
+    scitools_client.connect()
+    etl = ScitoolsETL(scitools_client.udb)
+    scitools_db = dict()
+    etl.transfer_to_struct_db(scitools_db)
+    return scitools_db
+
 # noinspection PyUnusedLocal
 @task
-def import_scitools_yaml_to_neo4j(ctx, yaml_path, neo4j_url, user='neo4j'):
+def neo4j_password(ctx, user='neo4j'):
+    password = getpass.getpass(prompt='Neo4j password for {0}: '.format(user))
+    ctx['neo4j_password'] = password
+
+
+# noinspection PyUnusedLocal
+@task
+def import_scitools_yaml_to_neo4j(ctx, yaml_path, neo4j_url='bolt://localhost',
+                                  user='neo4j', labels=''):
     """
 
+    :param labels:
     :param ctx:
     :param yaml_path:
     :param neo4j_url:
     :param user:
     """
+    label_list = to_label_list(labels)
     with open(yaml_path, 'r') as input_stream:
         scitools_db = yaml.load(input_stream)
-    password = getpass.getpass(prompt='Neo4j password for {0}: '.format(user))
-    neo4j_client = Neo4jClient(neo4j_url, user, password)
+    neo4j_client = connect_neo4j(ctx, neo4j_url, user)
+    ScitoolsETL.import_to_neo4j(scitools_db, neo4j_client, labels=label_list)
+
+
+def connect_neo4j(ctx, neo4j_url, user):
+    neo4j_password(ctx, user=user)
+    neo4j_client = Neo4jClient(neo4j_url, user, ctx['neo4j_password'])
     neo4j_client.connect()
-    ScitoolsETL.import_to_neo4j(scitools_db, neo4j_client)
+    return neo4j_client
+
+
+# noinspection PyUnusedLocal
+@task
+def import_scitools_to_neo4j(ctx, udb_path, neo4j_url='bolt://localhost',
+                                  user='neo4j', labels=''):
+    """
+
+    :param labels:
+    :param ctx:
+    :param yaml_path:
+    :param neo4j_url:
+    :param user:
+    """
+    label_list = to_label_list(labels)
+    scitools_db = scitools_to_structs(udb_path)
+    neo4j_client = connect_neo4j(ctx, neo4j_url, user)
+    ScitoolsETL.import_to_neo4j(scitools_db, neo4j_client, labels=label_list)
+
+
+def to_label_list(labels):
+    label_list = labels.split(':') if labels else []
+    return label_list
+
+
+# noinspection PyUnusedLocal
+@task
+def import_git_to_neo4j(ctx, git_path, neo4j_url='bolt://localhost',
+                        user='neo4j', labels=''):
+    label_list = to_label_list(labels)
+    neo4j_client = connect_neo4j(ctx, neo4j_url, user)
+    git_client = GitClient(git_path)
+    git_client.connect()
+    etl = GitETL(git_client.repo)
+    etl.import_to_neo4j(neo4j_client, labels=label_list)
+
+
+# ns = Collection()
+# ns.add_task(import_git_to_neo4j)

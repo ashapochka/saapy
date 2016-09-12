@@ -1,6 +1,12 @@
+# coding=utf-8
 from neo4j.v1 import GraphDatabase, basic_auth
-from collections.abc import Iterable, Iterator, Generator
+from collections.abc import Iterable, Generator
 import sys
+from typing import List
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class Neo4jClient:
@@ -29,6 +35,7 @@ class Neo4jClient:
         else:
             err = "batch_job must be iterable or callable but {0} passed"
             err = err.format(type(batch))
+            logger.error(err)
             raise ValueError(err)
         if dry_run:
             return list(it)
@@ -38,12 +45,15 @@ class Neo4jClient:
             consumed_result = None
             more_chunks = True
             while more_chunks:
+                logger.debug('neo4j transaction beginning')
                 with session.begin_transaction() as tx:
                     chunk_i = 0
                     try:
                         while chunk_i < chunk_count:
                             # noinspection PyNoneFunctionAssignment
                             query, params = it.send(consumed_result)
+                            logger.debug('chunk %s will run query %s'
+                                         'in transaction', chunk_i, query)
                             result = tx.run(query, params)
                             consumed_result = list(result)
                             result_set.append(consumed_result)
@@ -51,6 +61,36 @@ class Neo4jClient:
                     except StopIteration:
                         more_chunks = False
                     tx.success = True
+                logger.debug('neo4j transaction committed')
             return result_set
         finally:
             session.close()
+
+    def import_nodes(self, nodes: List[dict],
+                     chunk_size: int = 1000, labels: List[str] = []):
+        node_labels = ':{0}'.format(':'.join(labels)) \
+            if labels else ''
+        query = "UNWIND {props} AS map " + \
+                "CREATE (n{labels}) SET n = map".format(labels=node_labels)
+
+        chunk_count = 1
+
+        def batch():
+            for i in range(0, len(nodes), chunk_size):
+                logger.debug('starting chunk %s', i)
+                result = (yield query, dict(props=nodes[i:i + chunk_size]))
+                logger.debug(result)
+
+        self.run_in_tx(batch(), chunk_count=chunk_count)
+
+    def run_query(self, query: str, labels: List[str] = [], **kwargs) -> List:
+        node_labels = ':{0}'.format(':'.join(labels)) \
+            if labels else ''
+        labeled_query = query.format(labels=node_labels)
+        logger.debug('will run query %s', labeled_query)
+
+        def batch():
+            yield labeled_query, kwargs
+
+        result = self.run_in_tx(batch(), chunk_count=1)
+        return result

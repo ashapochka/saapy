@@ -1,7 +1,10 @@
-import itertools
 import time
 import difflib
 import pandas as pd
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 class GitETL:
@@ -9,38 +12,82 @@ class GitETL:
         self.repo = repo
 
     @staticmethod
-    def commit_to_dict(c):
-        d = dict(
-            hexsha=c.hexsha,
-            author_name=c.author.name,
-            author_email=c.author.email,
-            authored_date=c.authored_date,
-            message=c.message,
-            #         stats_lines = c.stats.total['lines'],
-            #         stats_deletions = c.stats.total['deletions'],
-            #         stats_files = c.stats.total['files'],
-            #         stats_insertions = c.stats.total['insertions']
+    def commit_to_struct(commit):
+        stats = commit.stats
+        parents = commit.parents
+        commit_struct = dict(
+            hexsha=commit.hexsha,
+            author_name=commit.author.name,
+            author_email=commit.author.email,
+            authored_date=commit.authored_date,
+            author_tz_offset=commit.author_tz_offset,
+            authored_datetime=str(commit.authored_datetime),
+            committer_name=commit.committer.name,
+            committer_email=commit.committer.email,
+            committed_date=commit.committed_date,
+            committer_tz_offset=commit.committer_tz_offset,
+            committed_datetime=str(commit.committed_datetime),
+            summary=commit.summary,
+            message=commit.message,
+            encoding=commit.encoding,
+            gpgsig=commit.gpgsig,
+            parents_hexsha = [p.hexsha for p in parents],
+            parent_hexsha=parents[0].hexsha if parents else None,
+            name_rev=commit.name_rev,
+            stats_total_lines = stats.total['lines'],
+            stats_total_deletions = stats.total['deletions'],
+            stats_total_files = stats.total['files'],
+            stats_total_insertions = stats.total['insertions']
         )
-        return d
 
-    @staticmethod
-    def commit_parents(c):
-        for p in c.parents:
-            d = dict(
-                commit=c.hexsha,
-                parent_commit=p.hexsha
-            )
-            yield d
+        file_structs = []
+        for file_name, file_stats in stats.files.items():
+            file_struct = dict(file_stats)
+            file_struct['file_name'] = file_name
+            file_struct['commit_hexsha'] = commit_struct['hexsha']
+            if commit_struct['parent_hexsha']:
+                file_struct['parent_hexsha'] = commit_struct['parent_hexsha']
+            file_structs.append(file_struct)
 
-    def export_commit_tree(self, commits_csv_path, parents_csv_path):
-        commits = list(self.repo.iter_commits())
-        commit_dicts = [self.commit_to_dict(c) for c in commits]
-        cframe = pd.DataFrame(commit_dicts)
-        cframe.to_csv(commits_csv_path, index=False)
-        cparents = itertools.chain.from_iterable(
-            (self.commit_parents(c) for c in commits))
-        pframe = pd.DataFrame(list(cparents))
-        pframe.to_csv(parents_csv_path, index=False)
+        return commit_struct, file_structs
+
+    def export_revision_history(self):
+        history = dict()
+        commits = history['GitCommit'] = []
+        file_stats = history['GitFileDiffStat'] = []
+        visited_commit_hexsha = set()
+        refs = self.repo.refs
+        tips = history['GitRef'] = [dict(ref_name=ref.name,
+                                         commit_hexsha=ref.commit.hexsha)
+                                    for ref in refs]
+        for tip in tips:
+            ref_name, ref_commit_hexsha = tip['ref_name'], tip['commit_hexsha']
+            logger.info('starting ref %s', ref_name)
+            commit_count = 0
+            for commit in self.repo.iter_commits(rev=ref_commit_hexsha):
+                commit_hexsha = commit.hexsha
+                if commit_hexsha in visited_commit_hexsha:
+                    continue
+                visited_commit_hexsha.add(commit_hexsha)
+                commit_struct, file_structs = self.commit_to_struct(commit)
+                if commit_hexsha == ref_commit_hexsha:
+                    commit_struct['ref'] = ref_name
+                commits.append(commit_struct)
+                file_stats.extend(file_structs)
+                commit_count += 1
+            logger.info('commits processed: %s', commit_count)
+        logger.info('history export complete')
+        return history
+
+    def import_to_neo4j(self, neo4j_client, labels=[]):
+        history = self.export_revision_history()
+        nodeset_names_to_import = history.keys()
+        for nodeset_name in nodeset_names_to_import:
+            node_labels = [nodeset_name] + labels
+            nodes = history[nodeset_name]
+            logger.info('importing %s nodes of %s', len(nodes), nodeset_name)
+            neo4j_client.import_nodes(nodes, labels=node_labels)
+            logger.info('%s imported', nodeset_name)
 
     @staticmethod
     def lookup_refs_from_commits(commits_csv_path):
