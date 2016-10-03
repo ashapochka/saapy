@@ -1,10 +1,10 @@
-from .workspace import Workspace
-from .environment import (
-    connect_git,
-    connect_neo4j,
-    connect_sonar,
-    connect_scitools,
-    Environment
+from .workspace import *
+from .resource_factory import (
+    create_git,
+    create_neo4j,
+    create_sonar,
+    create_scitools,
+    ResourceFactory
 )
 from .jupyter_support import configure_jupyter_environment
 from .secret_store import SecretStore

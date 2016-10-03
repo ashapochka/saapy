@@ -41,6 +41,9 @@ tabulate # generate tables in text files from data structures like pandas data f
 cryptography
 tinydb # json backed simple database
 ujson
+pyyaml
+toolz
+pyIsEmail
 
 # database drivers
 neo4j-driver #neo4j official driver

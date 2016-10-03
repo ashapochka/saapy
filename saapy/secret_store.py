@@ -32,7 +32,7 @@ class SecretStore:
             return master_keys
 
     @classmethod
-    def from_yaml(cls, key_yaml_path, store_yaml_path=None, encrypted=True):
+    def load_from_yaml(cls, key_yaml_path, store_yaml_path=None, encrypted=True):
         master_keys = SecretStore._load_keys(key_yaml_path)
         secret_store = cls(*master_keys)
         if store_yaml_path:
@@ -65,6 +65,14 @@ class SecretStore:
     def get_secret(self, *path):
         encrypted_secret = self.get_encrypted_secret(*path)
         return self.crypt.decrypt(encrypted_secret)
+
+    def delete_secret(self, *path):
+        if not len(path):
+            raise ValueError('path to secret must not be empty')
+        store = self.store
+        for key in path[:-1]:
+            store = store[key]
+        del store[path[-1]]
 
     def get_encrypted_secret(self, *path):
         if not len(path):

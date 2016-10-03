@@ -1,16 +1,22 @@
-from invoke import task, Collection
-from saapy import SecretStore
+from invoke import task
+from saapy import SecretStore, dump_configuration, Workspace
 from saapy.clients import ScitoolsClient
 from saapy.clients import Neo4jClient
 from saapy.clients import GitClient
 from saapy.etl import ScitoolsETL
 from saapy.etl import GitETL
+from saapy.antlr.tsql import print_tsql
 from timeit import default_timer as timer
-from datetime import timedelta
+from datetime import timedelta, datetime
 import os
+import sys
 import yaml
 import getpass
 import logging
+import requests
+from concurrent.futures import ThreadPoolExecutor
+import pandas as pd
+from saapy.etl import build_neo4j_query
 
 
 logging.basicConfig(style='{',
@@ -123,6 +129,19 @@ def dcompose_restart(ctx):
     ctx.run('docker-compose ps')
 
 
+# noinspection PyUnusedLocal
+@task
+def dup(ctx):
+    ctx.run('docker-compose up -d')
+    ctx.run('docker-compose ps')
+
+
+# noinspection PyUnusedLocal
+@task
+def dstop(ctx):
+    ctx.run('docker-compose stop')
+    ctx.run('docker-compose ps')
+
 
 @task
 def docker_cleanup(ctx):
@@ -188,8 +207,8 @@ def verify_x509(ctx, certificate):
 @task
 def encrypt_secrets(ctx, plain_store_yaml_path, key_yaml_path=None,
                     store_yaml_path=None):
-    secret_store = SecretStore.from_yaml(key_yaml_path, plain_store_yaml_path,
-                                         encrypted=False)
+    secret_store = SecretStore.load_from_yaml(key_yaml_path, plain_store_yaml_path,
+                                              encrypted=False)
     secret_store.save_as_yaml(store_yaml_path)
 
 
@@ -201,13 +220,24 @@ def gen_master_key(ctx, key_yaml_path):
 @task
 def set_secret(ctx, secret, service=None, user=None, key_yaml_path=None,
                store_yaml_path=None):
-    secret_store = SecretStore.from_yaml(key_yaml_path, store_yaml_path,
-                                         encrypted=True)
+    secret_store = SecretStore.load_from_yaml(key_yaml_path, store_yaml_path,
+                                              encrypted=True)
     path = []
     path = path + [service] if service else path
     path = path + [user] if user else path
     secret_store.set_secret(secret, *path)
     secret_store.save_as_yaml(store_yaml_path)
+
+
+@task
+def set_ws_secret(ctx, conf_path=None, resource=None):
+    ws = Workspace(conf_path)
+    user_name = ws.get_resource_user(resource)
+    secret = getpass.getpass(
+        prompt="User {0} password for resource {1}: ".format(
+            user_name, resource))
+    ws.secret_store.set_secret(secret, resource, user_name)
+    ws.save_configuration()
 
 
 # noinspection PyUnusedLocal
@@ -305,3 +335,108 @@ def import_git_to_neo4j(ctx, git_path, neo4j_url='bolt://localhost',
 
 # ns = Collection()
 # ns.add_task(import_git_to_neo4j)
+
+@task
+def hello_future(ctx):
+    from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+    import threading
+
+    dummy_event = threading.Event()
+
+    def long_task(exec_time):
+        print('starting execution of {0}'.format(exec_time))
+        # sleep(exec_time)
+        dummy_event.wait(timeout=exec_time)
+        return 'done {0}'.format(exec_time)
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        future = executor.submit(long_task, 30)
+
+        print('ok')
+        dummy_event.set()
+        print(future.result())
+
+
+@task
+def myip(ctx):
+    """
+    retrieves external ip address of the pc running this function
+    by calling http://myexternalip.com
+    :return: external ip address as a string
+    """
+    url = 'http://myexternalip.com/raw'
+    r = requests.get(url)
+    ext_ip = r.text.strip()
+    print(ext_ip)
+
+
+@task
+def print_tsql(ctx, *tsql_paths):
+    for path in tsql_paths:
+        print_tsql(path)
+
+
+@task
+def dump_conf(ctx, output=None, template_path=None):
+    if template_path:
+        with open(template_path, 'r') as template_yaml_file:
+            template = yaml.load(template_yaml_file)
+    else:
+        template = None
+    if output:
+        with open(output, 'w') as yaml_file:
+            dump_configuration(yaml_file, template=template)
+    else:
+        dump_configuration(sys.stdout, template=template)
+
+
+@task
+def tpl(ctx):
+    from string import Template
+    class Tpl(Template):
+        idpattern = r'[_a-z][\._a-z0-9]*'
+
+    t = Tpl('${workspace.work_directory}/conf/secret.yml')
+    s = t.safe_substitute(
+        {'workspace.work_directory': '/Users/ashapoch/Dropbox/_projects/saapy'})
+    print(s)
+
+
+@task
+def commit_graph(ctx, workspace_configuration='conf/workspace.yml'):
+    ws = Workspace(workspace_configuration)
+    jpos = ws.project('jpos')
+    neo = jpos.resource('neo4j_default')
+    neo.connect()
+    neo_client = neo.impl
+    executor = ThreadPoolExecutor(max_workers=10)
+    query = build_neo4j_query(neo_client, executor)
+    q = query("""
+MATCH (c:jpos:GitCommit)<--(ga:jpos:GitAuthor)<--(a:jpos:Actor)
+WHERE SIZE(c.parents_hexsha) < 2 AND a.name <>"Travis"
+WITH c, a
+RETURN
+c.authored_datetime AS commit_datetime,
+a.name AS commit_author
+ORDER BY c.authored_date
+""")
+    df = q.result()
+    ts = pd.to_datetime(df['commit_datetime'].tolist())
+    # del df['commit_datetime']
+    df.index = ts
+    commit_counts = df.commit_author.value_counts()
+    top_commit_counts = commit_counts[commit_counts > commit_counts.quantile(0.9)]
+    top_committers = top_commit_counts.index.tolist()
+    top_df = df[df.commit_author.isin(top_committers)]
+    print(top_df.ix['2015'])
+    # ct = pd.crosstab(top_df.index, top_df.commit_author, margins=True)
+    # print(ct.index)
+    # ct.index = pd.to_datetime(ct.index)
+    # print(ct[ct.index > datetime(2016, 1, 1)])
+    # print(df.commit_author.unique())
+    # df['commit_count'] = 1
+    # del df['commit_date']
+    # print(df)
+    # del df['commit_datetime']
+    # print(df.pivot('commit_datetime', 'commit_author', 'commit_count'))

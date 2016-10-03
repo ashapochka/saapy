@@ -1,9 +1,14 @@
+# coding=utf-8
+
+
 from pathlib import Path
 import shutil
 import time
-import anyconfig
-import requests
-import keyring
+import yaml
+from string import Template
+import os
+from .secret_store import SecretStore
+from .resource_factory import ResourceFactory
 
 
 class Workspace:
@@ -12,73 +17,77 @@ class Workspace:
     with analyzed files.
     """
 
-    def __init__(self, name, local_root_dir, work_dir=None, dry_run=False,
-                 configuration_text=None):
-        self.name = name
-        self.local_root_dir = Path(local_root_dir).resolve()
-        self.work_dir_part = Path(work_dir or name)
-        self.work_dir = self.local_root_dir / self.work_dir_part
-        self.conf_dir = self.work_dir / "conf"
-        self.conf_file = self.conf_dir / "workspace.yaml"
-        if not dry_run:
-            self.work_dir.mkdir(exist_ok=True)
-            self.conf_dir.mkdir(exist_ok=True)
-            if not self.conf_file.is_file():
-                if not configuration_text:
-                    configuration_text = """
-active_env: local_dev
-local_dev:
-    services:
-        - {neo4j: local_neo4j}
-local_neo4j:
-    service_type: neo4j_service
-    service_url: bolt://localhost
-    user_name: neo4j
-"""
-                self.conf_file.write_text(configuration_text, encoding="utf-8")
-            self.configuration = anyconfig.load(str(self.conf_file))
+    def __init__(self,
+                 configuration_path,
+                 override_configuration=None,
+                 **kwargs):
+        self.conf_file = Path(configuration_path)
+        if override_configuration:
+            self.__configuration = override_configuration
+            self.__resolved_conf = resolve_configuration_template(
+                self.__configuration, **kwargs)
+        else:
+            self.load_configuration(**kwargs)
+        self.name = self.conf('workspace', 'name')
+        self.work_dir = Path(self.conf('workspace', 'work_directory'))
+        self.work_dir.mkdir(exist_ok=True)
+        self.secret_store = self._init_secret_store()
+        self.resource_factory = ResourceFactory()
+        self.resources = {key: Resource(self, key, value)
+                          for key, value in self.conf('resources').items()}
+        self.projects = {key: Project(self, key, value)
+                         for key, value in self.conf('projects').items()}
+
+    def _init_secret_store(self):
+        store_name = self.conf('workspace', 'secret_store')
+        store_type = self.conf('resources', store_name, 'store_type')
+        if store_type == 'fernet_yaml_store':
+            master_key_file = self.conf('resources', store_name,
+                                        'master_key_file')
+            self._secret_file = self.conf('resources', store_name,
+                                          'secret_file')
+            store = SecretStore.load_from_yaml(master_key_file,
+                                               self._secret_file)
+            return store
+        else:
+            raise Exception('Unsupported secret store type {0}'.format(
+                store_type))
 
     def __str__(self):
         return "<Workspace name='{0}' work_dir={1}>".format(self.name,
                                                             self.work_dir)
 
     @classmethod
-    def from_home(cls, name, rel_root_dir=None, work_dir=None, dry_run=False,
-                  configuration_text=None):
+    def load_from_home(cls, relative_conf_path, **kwargs):
         """
-        creates workspace with root in the user home directory
-        :param name: workspace name
-        :param rel_root_dir: workspaces root dir relative to user home
-         if it is None the root is user home, otherwise $HOME/rel_root_dir
-        :param work_dir: workspace directory relative to root,
-        substituted with ws name if empty
-        :param dry_run: if true skips file system manipulations
+        loads workspace relative to the user directory
+        :param relative_conf_path: path to configuration
+        relative to the user directory
         :return: initialized workspace
         """
-        root = Path.home()
-        if rel_root_dir:
-            root = root / rel_root_dir
-        return cls(name, root, work_dir=work_dir, dry_run=dry_run,
-                   configuration_text=configuration_text)
+        return cls(Path.home() / relative_conf_path,
+                   override_configuration=None, **kwargs)
 
     @classmethod
-    def from_current(cls, name, rel_root_dir=None, work_dir=None,
-                     dry_run=False, configuration_text=None):
+    def load_from_wd(cls, relative_conf_path='conf/workspace.yml', **kwargs):
         """
-        creates workspace with root in the current directory
-        :param name: workspace name
-        :param rel_root_dir: workspaces root dir relative to current directory
-         if it is None the root is current directory, otherwise ./rel_root_dir
-        :param work_dir: workspace directory relative to root,
-        substituted with ws name if empty
-        :param dry_run: if true skips file system manipulations
+        loads workspace relative to the current directory
+        :param relative_conf_path: path to configuration
+        relative to the current directory
         :return: initialized workspace
         """
-        root = Path(".")
-        if rel_root_dir:
-            root = root / rel_root_dir
-        return cls(name, root, work_dir=work_dir, dry_run=dry_run,
-                   configuration_text=configuration_text)
+        work_directory = str(Path('.').resolve())
+        return cls(Path(".") / relative_conf_path,
+                   override_configuration=None,
+                   SAAPY_WORK_DIR=work_directory,
+                   **kwargs)
+
+    @classmethod
+    def create_from_template(cls, configuration_path, **kwargs):
+        with open(configuration_path, 'w') as yaml_file:
+            dump_configuration(yaml_file, **kwargs)
+        return cls(configuration_path,
+                   override_configuration=None, **kwargs)
 
     def touch(self, filename):
         filepath = self.work_dir / filename
@@ -103,104 +112,198 @@ local_neo4j:
     def abs_path_str(self, filepath):
         return str(self.abs_path(filepath))
 
-    def update_configuration(self, update_dict):
-        self.configuration.update(update_dict)
+    def conf(self, *path):
+        conf_level = self.__resolved_conf
+        for key in path:
+            conf_level = conf_level[key]
+        return conf_level
 
-    def update_service_conf(self, service, service_conf, password=None):
-        self.update_configuration({service: service_conf})
-        if password and "user_name" in service_conf:
-            self.set_password(service, service_conf["user_name"], password)
+    # def update_configuration(self, update_dict):
+    #     self.__configuration.update(update_dict)
+    #
+    # def update_resource_conf(self, resource, resource_conf, password=None):
+    #     self.update_configuration({resource: resource_conf})
+    #     if password and "user_name" in resource_conf:
+    #         self.secret_store.set_secret(password, resource,
+    #                                      resource_conf["user_name"])
 
-    def save_configuration(self):
-        anyconfig.dump(self.configuration, str(self.conf_file), canonical=False)
-
-    @staticmethod
-    def set_password(service, user, password):
-        return keyring.set_password(service, user, password)
-
-    @staticmethod
-    def get_password(service, user):
-        return keyring.get_password(service, user)
-
-    def get_service_credentials(self, service):
+    def get_resource_credentials(self, resource):
         try:
-            user = self.configuration[service]["user_name"]
-            password = self.get_password(service, user) if user else None
-            return user, password
+            user = self.conf('resources', resource, "user_name")
+            if user:
+                path = [resource, user]
+            else:
+                path = [resource]
+            secret = self.secret_store.get_secret(*path)
+            decoded_secret = str(secret, 'utf-8')
+            return user, decoded_secret
         except KeyError:
             return None, None
 
-    def get_service_url(self, service):
-        url = self.configuration[service]["service_url"]
+    def get_resource_url(self, resource):
+        url = self.conf('resources', resource, "resource_url")
         return url
 
-    def get_service_path(self, service, resolve_relative=False):
-        path = self.configuration[service]["service_path"]
+    def get_resource_path(self, resource, resolve_relative=False):
+        path = self.conf('resources', resource, "resource_path")
         if resolve_relative:
             path = self.abs_path_str(path)
         return path
 
-    def get_service_type(self, service):
-        return self.configuration[service]["service_type"]
+    def get_resource_type(self, resource):
+        return self.conf('resources', resource, "resource_type")
 
-    @staticmethod
-    def delete_password(service, user):
-        return keyring.delete_password(service, user)
+    def get_resource_user(self, resource):
+        return self.conf('resources', resource, "user_name")
 
-    def set_neo4j_password(self, neo4j_service, old_password, new_password):
-        """
-        sets new password for the neo4j server updating the server and the
-        local keyring
+    def project(self, name):
+        return self.projects[name]
 
-        :param neo4j_service: neo4j instance name as in the configuration and
-        keyring
-        :param old_password: current password in neo4j database
-        :param new_password: new password to set
-        :return: None
+    def resource(self, name):
+        return self.resources[name]
 
-        An excerpt from neo4j documentation on password change API:
+    def save_configuration(self):
+        with open(str(self.conf_file), 'w') as yaml_file:
+            yaml.dump(self.__configuration, yaml_file, default_flow_style=False)
+        self.secret_store.save_as_yaml(self._secret_file)
 
-        Changing the user password
-        Given that you know the current password, you can ask the server to
-        change a users password.
-        You can choose any password you like, as long as it is different from
-        the current password.
+    def load_configuration(self, **kwargs):
+        with open(str(self.conf_file), 'r') as yaml_file:
+            self.__configuration = yaml.load(yaml_file)
+            self.__resolved_conf = resolve_configuration_template(
+                self.__configuration, **kwargs)
 
-        Example request
 
-        POST http://localhost:7474/user/neo4j/password
-        Accept: application/json; charset=UTF-8
-        Authorization: Basic bmVvNGo6bmVvNGo=
-        Content-Type: application/json
-        {
-          "password" : "secret"
+class Project:
+    def __init__(self, workspace, name, conf):
+        self.workspace = workspace
+        self.name = name
+        self.conf = conf
+        self.resources = {res_name: self.workspace.resource(res_name)
+                          for res_name in self.conf['resources']}
+
+    def resource(self, name):
+        return self.resources[name]
+
+
+class Resource:
+    def __init__(self, workspace, name, conf):
+        self.workspace = workspace
+        self.name = name
+        self.conf = conf
+        self.impl = self.workspace.resource_factory.create_resource(
+            self.workspace,
+            self.name,
+            self.conf
+        )
+        self.connected = False
+
+    def connect(self):
+        if not self.connected:
+            self.impl.connect()
+            self.connected = True
+
+
+def configuration_template():
+    """
+    builds default configuration template with values to substitute
+    using string.Template $ format, so they can be replaced from os.environ
+    or similar dictionary
+    :return: template as dict of dicts and lists
+    """
+    template = {
+        'workspace': {
+            'name': '$SAAPY_WS_NAME',
+            'work_directory': '$SAAPY_WORK_DIRECTORY',
+            'secret_store': 'secret_store_default'
+        },
+        'projects': {
+            '$SAAPY_PROJECT_NAME': {
+                'resources': [
+                    'neo4j_default',
+                    'scitools_default',
+                    'git_default'
+                ]
+            }
+        },
+        'resources': {
+            'neo4j_default': {
+                'resource_type': 'neo4j_service',
+                'resource_url': '$SAAPY_NEO4J_URL',
+                'user_name': '$SAAPY_NEO4J_USER'
+            },
+            'secret_store_default': {
+                'resource_type': 'secret_store',
+                'store_type': 'fernet_yaml_store',
+                'master_key_file': '$SAAPY_MASTER_KEY_FILE',
+                'secret_file': '$SAAPY_SECRET_FILE',
+            },
+            'git_default': {
+                'resource_type': 'git_local_service',
+                'resource_path': '$SAAPY_GIT_REPOSITORY'
+            },
+            'scitools_default': {
+                'resource_type': 'scitools_local_service',
+                'resource_path': '$SAAPY_SCITOOLS_FILE'
+            },
+            'jira_default': {
+                'resource_type': 'jira_service',
+                'resource_url': '$SAAPY_JIRA_URL',
+                'user_name': '$SAAPY_JIRA_USER'
+            },
+            'sonar_default': {
+                'resource_type': 'sonar_service',
+                'resource_url': '$SAAPY_SONAR_URL',
+                'user_name': '$SAAPY_SONAR_USER'
+            }
         }
-        Example response
+    }
+    return template
 
-        200: OK
-        """
 
-        value_error_msg = ''
+class ConfTemplate(Template):
+    idpattern = r'[_a-z][\._a-z0-9]*'
 
-        if new_password == old_password:
-            value_error_msg = "New password must not equal old password"
-        elif not new_password:
-            value_error_msg = "New password must not be empty"
 
-        if value_error_msg:
-            raise ValueError(value_error_msg)
+def resolve_configuration_template(template: dict, **kwargs):
+    def resolve_str(value: str, vars: dict):
+        t = ConfTemplate(value)
+        return t.safe_substitute(**vars)
 
-        user_name = self.configuration[neo4j_service]["user_name"]
-        host_url = self.configuration[neo4j_service]["service_url"]
-        url = "{host_url}/user/{user_name}/password".format(host_url=host_url,
-                                                            user_name=user_name)
-        headers = {"Accept": "application/json; charset=UTF-8",
-                   "Content-Type": "application/json"}
-        payload = {'password': new_password}
-        r = requests.post(url, auth=(user_name, old_password), headers=headers,
-                          json=payload)
-
-        if r.ok:
-            keyring.set_password(neo4j_service, user_name, new_password)
+    def resolve(struct, vars:dict):
+        if isinstance(struct, dict):
+            return {resolve_str(key, vars): resolve(value, vars)
+                    for key, value in struct.items()}
+        elif isinstance(struct, list):
+            return [resolve(value, vars) for value in struct]
+        elif isinstance(struct, str):
+            return resolve_str(struct, vars)
         else:
-            r.raise_for_status()
+            raise ValueError(
+                'Value has unresolvable type {0}'.format(type(struct)))
+
+    def flatten_template(struct, target, prefix=""):
+        if isinstance(struct, dict):
+            for key, value in struct.items():
+                key_prefix = prefix + '.' + key if prefix else key
+                flatten_template(value, target, prefix=key_prefix)
+        elif isinstance(struct, list):
+            for i, value in enumerate(struct):
+                i_prefix = prefix + '.' + str(i) if prefix else str(i)
+                flatten_template(value, target, prefix=i_prefix)
+        elif isinstance(struct, str):
+            target[prefix] = struct
+
+    pass1_template = resolve(template, kwargs)
+    pass2_template = resolve(pass1_template, os.environ)
+    local_vars = dict()
+    flatten_template(pass2_template, local_vars)
+    pass3_template = resolve(pass2_template, local_vars)
+    return pass3_template
+
+
+def dump_configuration(stream, template=None, **kwargs):
+    initial_template = template if template else configuration_template()
+    resolved_template = resolve_configuration_template(
+        initial_template, **kwargs)
+    yaml.dump(resolved_template, stream, default_flow_style=False)

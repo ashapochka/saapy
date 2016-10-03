@@ -1,10 +1,12 @@
 # coding=utf-8
 from neo4j.v1 import GraphDatabase, basic_auth
+# noinspection PyCompatibility
 from collections.abc import Iterable, Generator
 import sys
 from typing import List
 import logging
-
+import requests
+from string import Template
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +28,12 @@ class Neo4jClient:
         if not chunk_count:
             chunk_count = sys.maxsize
         if isinstance(batch, Generator):
-           it = batch
+            it = batch
         elif isinstance(batch, Iterable):
             def gen():
                 for j in batch:
                     yield j
+
             it = gen()
         else:
             err = "batch_job must be iterable or callable but {0} passed"
@@ -66,12 +69,15 @@ class Neo4jClient:
         finally:
             session.close()
 
+    import_nodes_template = Template("UNWIND {props} AS map "
+                                     "CREATE (n$labels) SET n = map")
+
     def import_nodes(self, nodes: List[dict],
-                     chunk_size: int = 1000, labels: List[str] = []):
+                     labels: List[str] = None,
+                     chunk_size: int = 1000):
         node_labels = ':{0}'.format(':'.join(labels)) \
             if labels else ''
-        query = "UNWIND {props} AS map " + \
-                "CREATE (n{labels}) SET n = map".format(labels=node_labels)
+        query = self.import_nodes_template.safe_substitute(labels=node_labels)
 
         chunk_count = 1
 
@@ -81,16 +87,91 @@ class Neo4jClient:
                 result = (yield query, dict(props=nodes[i:i + chunk_size]))
                 logger.debug(result)
 
-        self.run_in_tx(batch(), chunk_count=chunk_count)
+        result = self.run_in_tx(batch(), chunk_count=chunk_count)
+        return result
 
-    def run_query(self, query: str, labels: List[str] = [], **kwargs) -> List:
+    def run_batch_query(self, query: str,
+                        labels: List[str] = None,
+                        params: List[dict] = None,
+                        chunk_size: int = 1000):
         node_labels = ':{0}'.format(':'.join(labels)) \
             if labels else ''
-        labeled_query = query.format(labels=node_labels)
+        query_template = Template("UNWIND {params} AS params " + query)
+        labeled_query = query_template.safe_substitute(labels=node_labels)
+
+        chunk_count = 1
+
+        def batch():
+            for i in range(0, len(params), chunk_size):
+                logger.debug('starting chunk %s', i)
+                result = (yield labeled_query,
+                                dict(params=params[i:i + chunk_size]))
+                logger.debug(result)
+
+        result = self.run_in_tx(batch(), chunk_count=chunk_count)
+        return result
+
+    def run_query(self, query: str, labels: List[str] = None, **kwargs) -> List:
+        node_labels = ':{0}'.format(':'.join(labels)) \
+            if labels else ''
+        query_template = Template(query)
+        labeled_query = query_template.safe_substitute(labels=node_labels)
         logger.debug('will run query %s', labeled_query)
 
         def batch():
             yield labeled_query, kwargs
 
         result = self.run_in_tx(batch(), chunk_count=1)
-        return result
+        return result[0]
+
+    def set_neo4j_password(self, new_password):
+        """
+        sets new password for the neo4j server updating the server
+
+        :param new_password: new password to set
+        :return: boolean: True if update is successful
+
+        An excerpt from neo4j documentation on password change API:
+
+        Changing the user password
+        Given that you know the current password, you can ask the server to
+        change a users password.
+        You can choose any password you like, as long as it is different from
+        the current password.
+
+        Example request
+
+        POST http://localhost:7474/user/neo4j/password
+        Accept: application/json; charset=UTF-8
+        Authorization: Basic bmVvNGo6bmVvNGo=
+        Content-Type: application/json
+        {
+          "password" : "secret"
+        }
+        Example response
+
+        200: OK
+        """
+
+        value_error_msg = ''
+
+        if new_password == self.neo4j_password:
+            value_error_msg = "New password must not equal old password"
+        elif not new_password:
+            value_error_msg = "New password must not be empty"
+
+        if value_error_msg:
+            raise ValueError(value_error_msg)
+
+        url = "{host_url}/user/{user_name}/password".format(
+            host_url=self.neo4j_url, user_name=self.neo4j_user)
+        headers = {"Accept": "application/json; charset=UTF-8",
+                   "Content-Type": "application/json"}
+        payload = {'password': new_password}
+        r = requests.post(url, auth=(self.neo4j_user, self.neo4j_password),
+                          headers=headers, json=payload)
+        if r.ok:
+            self.neo4j_password = new_password
+            return True
+        else:
+            r.raise_for_status()

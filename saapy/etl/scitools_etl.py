@@ -113,7 +113,7 @@ class ScitoolsETL:
         e['name'] = ent.name()
         e['relname'] = ent.relname()
         e['simplename'] = ent.simplename()
-        # e['kindname'] = ent.kindname()
+        e['kindname'] = ent.kindname()
         e['kind_longname'] = ent.kind().longname()
         e['parameters'] = ent.parameters(shownames=True)
         e['type'] = ent.type()

@@ -5,8 +5,8 @@ import uuid
 
 @pytest.fixture(scope="session")
 def neo4j_client(request, workspace):
-    url = workspace.get_service_url("local_neo4j")
-    user, password = workspace.get_service_credentials("local_neo4j")
+    url = workspace.get_resource_url("local_neo4j")
+    user, password = workspace.get_resource_credentials("local_neo4j")
     client = Neo4jClient(url, user, password)
     client.connect()
     return client

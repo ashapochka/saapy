@@ -1,11 +1,12 @@
-def split_by_character_type(s, camel=True):
+def split_name_by_character_type(s, camel=True):
     """
     splits an input string into parts by camel case pattern,
     underscores, acronyms, digits, etc.
 
     Example:
 
-    ss = [None, "", "ab de fg", "ab   de fg", "ab:cd:ef", "number5", "fooBar", "foo200Bar", "ASFRules"]
+    ss = [None, "", "ab de fg", "ab   de fg", "ab:cd:ef",
+          "number5", "fooBar", "foo200Bar", "ASFRules"]
 
     for s in ss:
         print(split_by_character_type(s))
