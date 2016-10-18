@@ -336,3 +336,13 @@ SIZE(FILTER(user IN users WHERE NOT user IN developers)) AS user_count,
 SIZE(dependent_packages) AS dependency_count
 ORDER BY user_count DESC, total_cyclomatic_strict DESC
 ```
+
+List commit history for actors:
+
+```
+MATCH (c:jpos:GitCommit)<--(ga:jpos:GitAuthor)<--(a:jpos:Actor)
+WHERE SIZE(c.parents_hexsha) < 2
+WITH c, a
+RETURN c.authored_date AS commit_date, c.authored_datetime AS commit_datetime, a.name AS commit_author
+ORDER BY commit_date
+```
