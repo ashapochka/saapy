@@ -1,0 +1,5 @@
+deb http://172.17.0.1:3142/httpredir.debian.org/debian jessie main
+deb http://172.17.0.1:3142/httpredir.debian.org/debian jessie-updates main
+deb http://172.17.0.1:3142/security.debian.org jessie/updates main
+deb http://172.17.0.1:3142/downloads.skewed.de/apt/jessie jessie main
+deb-src http://172.17.0.1:3142/downloads.skewed.de/apt/jessie jessie main

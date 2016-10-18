@@ -440,3 +440,45 @@ ORDER BY c.authored_date
     # print(df)
     # del df['commit_datetime']
     # print(df.pivot('commit_datetime', 'commit_author', 'commit_count'))
+
+
+@task
+def run_apt_cacher(ctx):
+    """
+    see https://store.docker.com/community/images/sameersbn/apt-cacher-ng
+    :param ctx:
+    """
+    ctx.run("""docker run --name apt-cacher-ng -d --restart=always \
+    --publish 3142:3142 \
+    --volume $DOCKER_MOUNT_HOME/apt-cacher-ng/cache:/var/cache/apt-cacher-ng \
+    --volume $DOCKER_MOUNT_HOME/apt-cacher-ng/log:/var/log/apt-cacher-ng \
+    sameersbn/apt-cacher-ng:latest
+""")
+
+
+@task
+def run_devpi(ctx):
+    """
+    see https://store.docker.com/community/images/muccg/devpi
+    :param ctx:
+    """
+    ctx.run("""docker run -d --name devpi \
+    --publish 3141:3141 \
+    --volume $DOCKER_MOUNT_HOME/devpi/data:/data \
+    --restart always \
+    dock-devpi
+""")
+
+@task
+def run_jenkins_ca(ctx):
+    """
+    see https://store.docker.com/community/images/muccg/devpi
+    :param ctx:
+    """
+    ctx.run("""docker run -d --name ca \
+    --publish 8080:8080 --publish 50000:50000 \
+    --volume $DOCKER_MOUNT_HOME/jenkins-ca/home:/var/jenkins_home \
+    --restart always \
+    jenkins-ca
+""")
+
