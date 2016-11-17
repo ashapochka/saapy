@@ -1,4 +1,7 @@
-import understand
+try:
+    import understand
+except:
+    print('understand not found')
 import sys
 from traceback import print_exc
 from pathlib import Path
