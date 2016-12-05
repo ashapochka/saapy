@@ -1,4 +1,4 @@
-from saapy.clients import Neo4jClient
+from saapy.connectors.neo4j import Neo4jClient
 import pytest
 import uuid
 

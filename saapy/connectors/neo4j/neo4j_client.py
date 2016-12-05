@@ -111,7 +111,10 @@ class Neo4jClient:
         result = self.run_in_tx(batch(), chunk_count=chunk_count)
         return result
 
-    def run_query(self, query: str, labels: List[str] = None, **kwargs) -> List:
+    def run_query(self,
+                  query: str,
+                  labels: List[str] = None,
+                  params: dict = None) -> List:
         node_labels = ':{0}'.format(':'.join(labels)) \
             if labels else ''
         query_template = Template(query)
@@ -119,7 +122,7 @@ class Neo4jClient:
         logger.debug('will run query %s', labeled_query)
 
         def batch():
-            yield labeled_query, kwargs
+            yield labeled_query, params
 
         result = self.run_in_tx(batch(), chunk_count=1)
         return result[0]

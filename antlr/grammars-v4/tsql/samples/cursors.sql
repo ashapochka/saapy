@@ -179,11 +179,11 @@ DEALLOCATE contact_cursor;
 GO
 
 --+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
--- Using FETCH to store values in variables
+-- Using FETCH to encrypted_store values in variables
 
 USE AdventureWorks2012;
 GO
--- Declare the variables to store the values returned by FETCH.
+-- Declare the variables to encrypted_store the values returned by FETCH.
 DECLARE @LastName varchar(50), @FirstName varchar(50);
 
 DECLARE contact_cursor CURSOR FOR
@@ -193,7 +193,7 @@ ORDER BY LastName, FirstName;
 
 OPEN contact_cursor;
 
--- Perform the first fetch and store the values in variables.
+-- Perform the first fetch and encrypted_store the values in variables.
 -- Note: The variables are in the same order as the columns
 -- in the SELECT statement. 
 

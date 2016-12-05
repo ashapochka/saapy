@@ -4,11 +4,14 @@ from datetime import datetime, timezone
 
 
 class SecretStore:
-    def __init__(self, *master_keys):
+    def __init__(self, *master_keys, encrypted_store: dict = None):
         if not len(master_keys):
             raise ValueError('at least one master key must be passed')
         self.crypt = MultiFernet([Fernet(key) for key in master_keys])
-        self.store = dict()
+        if not encrypted_store:
+            self.encrypted_store = dict()
+        else:
+            self.encrypted_store = encrypted_store
 
     @staticmethod
     def generate_master_key():
@@ -57,7 +60,7 @@ class SecretStore:
         if isinstance(secret, str):
             secret = secret.encode('utf-8')
         encrypted_secret = self.crypt.encrypt(secret)
-        store = self.store
+        store = self.encrypted_store
         for key in path[:-1]:
             store = store.setdefault(key, dict())
         store[path[-1]] = encrypted_secret
@@ -69,7 +72,7 @@ class SecretStore:
     def delete_secret(self, *path):
         if not len(path):
             raise ValueError('path to secret must not be empty')
-        store = self.store
+        store = self.encrypted_store
         for key in path[:-1]:
             store = store[key]
         del store[path[-1]]
@@ -77,7 +80,7 @@ class SecretStore:
     def get_encrypted_secret(self, *path):
         if not len(path):
             raise ValueError('path to secret must not be empty')
-        store = self.store
+        store = self.encrypted_store
         for key in path[:-1]:
             store = store[key]
         encrypted_secret = store[path[-1]]
@@ -87,15 +90,15 @@ class SecretStore:
         with open(yaml_path, 'r') as secret_file:
             secret_storage = yaml.load(secret_file)
             if encrypted:
-                self.store = secret_storage['store']
+                self.encrypted_store = secret_storage['encrypted_store']
             else:
-                self.encrypt_copy(secret_storage['store'])
+                self.encrypt_copy(secret_storage['encrypted_store'])
 
     def save_as_yaml(self, yaml_path):
-        SecretStore._save_as_yaml(yaml_path, 'store', self.store)
+        SecretStore._save_as_yaml(yaml_path, 'encrypted_store', self.encrypted_store)
 
     def print_as_yaml(self):
-        print(yaml.dump(self.store, default_flow_style=False))
+        print(yaml.dump(self.encrypted_store, default_flow_style=False))
 
     @staticmethod
     def _wrap_payload(payload_key, payload):

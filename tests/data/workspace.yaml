@@ -1,7 +1,0 @@
-active_profile: local_test
-local_test:
-    neo4j_service: local_neo4j
-local_neo4j:
-    service_type: neo4j_service
-    service_url: bolt://localhost
-    user_name: neo4j

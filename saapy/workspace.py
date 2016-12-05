@@ -50,7 +50,7 @@ class Workspace:
                                                self._secret_file)
             return store
         else:
-            raise Exception('Unsupported secret store type {0}'.format(
+            raise Exception('Unsupported secret encrypted_store type {0}'.format(
                 store_type))
 
     def __str__(self):

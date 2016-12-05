@@ -121,7 +121,7 @@ WHERE SalariedFlag = 0;
                 -- WHERE bec.BusinessEntityID = @BusinessEntityID) 
                 -- THEN 'Vendor'
 
-            -- -- Check for store
+            -- -- Check for encrypted_store
             -- WHEN EXISTS(SELECT * FROM Purchasing.Vendor AS v          
                 -- WHERE v.BusinessEntityID = @BusinessEntityID) 
                 -- THEN 'Store Contact'

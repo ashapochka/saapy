@@ -1,8 +1,8 @@
 from invoke import task
 from saapy import SecretStore, dump_configuration, Workspace
-from saapy.clients import ScitoolsClient
-from saapy.clients import Neo4jClient
-from saapy.clients import GitClient
+from saapy.connectors import ScitoolsClient
+from saapy.connectors import Neo4jClient
+from saapy.connectors import GitClient
 from saapy.etl import ScitoolsETL
 from saapy.etl import GitETL
 from saapy.antlr.tsql import print_tsql

@@ -1,3 +1,4 @@
 # coding=utf-8
 
-from .naming import *
+from .utils import *
+from .git_authorship import GitAuthorAnalysis, GitAuthorQueryFactory
