@@ -1627,7 +1627,7 @@ class TsqlPrinter(tsqlListener):
 
 
 from antlr4 import *
-from saapy.antlr.tsql.autogen import tsqlLexer, tsqlParser, tsqlListener
+from saapy.lang.tsql.autogen import tsqlLexer, tsqlParser, tsqlListener
 
 
 class TsqlPrinter(tsqlListener):

@@ -1,11 +1,11 @@
 from invoke import task
 from saapy import SecretStore, dump_configuration, Workspace
 from saapy.connectors import ScitoolsClient
-from saapy.connectors import Neo4jClient
+from saapy.connectors.neo4j import Neo4jClient
 from saapy.connectors import GitClient
 from saapy.etl import ScitoolsETL
 from saapy.etl import GitETL
-from saapy.antlr.tsql import print_tsql
+from saapy.lang.tsql import print_tsql
 from timeit import default_timer as timer
 from datetime import timedelta, datetime
 import os
@@ -80,12 +80,12 @@ def jupyter(ctx):
 @task
 def gen_antlr_tsql(ctx):
     """
-    generates python3 antlr parser code for T-SQL,
+    generates python3 lang parser code for T-SQL,
     depends on antlr4 installed and visible in the system
     :param ctx:
     :return: None
     """
-    target_dir = "saapy/antlr/tsql/autogen"
+    target_dir = "saapy/lang/tsql/autogen"
     grammar_dir = "antlr/grammars-v4/tsql/tsql.g4"
     ctx.run("antlr4 -Dlanguage=Python3 -o {0} {1}".format(target_dir, grammar_dir))
 
