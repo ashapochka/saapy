@@ -8,6 +8,7 @@ pytest-cov # calculate test coverage
 pytest-bdd # behavior driven tests
 pytest-cache # test results caching (pep8 uses it)
 pytest-datadir # fixtures to access file system resources in tests
+pytest-datafiles
 tox # test automation tool
 
 # core project dependencies

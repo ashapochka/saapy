@@ -1,6 +1,7 @@
 import pytest
 import tempfile
 import shutil
+import os
 from saapy import Workspace
 
 
@@ -36,6 +37,16 @@ class _Datadir(object):
 @pytest.fixture(scope="session")
 def data_directory(request, pytestconfig):
     return pytestconfig.rootdir.join('tests/data')
+
+
+FIXTURE_DIR = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)),
+    'data')
+
+@pytest.fixture
+@pytest.mark.datafiles(os.path.join(FIXTURE_DIR, 'neo4j-test-ws'))
+def neo4j_test_ws_dir(datafiles):
+    return datafiles
 
 
 @pytest.fixture(scope="session")

@@ -1,0 +1,2 @@
+devpi-server # pypi proxy server
+devpi-web    # search on devpi

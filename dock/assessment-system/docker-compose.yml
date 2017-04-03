@@ -1,0 +1,42 @@
+version: '2'
+services:
+#    www.local.tdback.space:
+#        image: nginx:latest
+#        ports:
+#            - 80:80 # http
+#            - 443:443 # https
+#        volumes:
+#            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/htmlo:/etc/nginx/html
+#            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/conf/nginx.conf:/etc/nginx/nginx.conf:ro
+#            - $DOCKER_MOUNT_HOME/saapy/_shared/cert:/etc/nginx/cert
+#            - $DOCKER_MOUNT_HOME/saapy/www.local.tdback.space/logs:/var/log/nginx
+    agraph.local.tdback.space:
+        image: saapy/graph-database
+        ports:
+            - 7473:7473 # https
+            - 7474:7474 # http
+            - 7687:7687 # bolt
+        volumes:
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/data:/data
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/conf:/conf
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/logs:/logs
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/import:/import
+            - $DOCKER_MOUNT_HOME/saapy/agraph.local.tdback.space/ssl:/ssl
+        ulimits:
+            nofile:
+                soft: 40000
+                hard: 40000
+    notebook.local.tdback.space:
+        image: saapy/assessment-notebook
+        command: ["/opt/conda/bin/jupyter", "notebook", "--notebook-dir=/opt/notebooks", "--ip=*", "--port=8888", "--no-browser"]
+        ports:
+            - 8888:8888 # http
+        volumes:
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/notebooks:/opt/notebooks
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/scitools:/opt/scitools
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/scitools-conf/users.txt:/opt/scitools/conf/license/users.txt:ro
+            - $DOCKER_MOUNT_HOME/saapy/notebook.local.tdback.space/scitools-conf/Understand.conf:/root/.config/SciTools/Understand.conf:ro
+            - $SAAPY_HOME/saapy:/opt/conda/lib/python3.5/site-packages/saapy
+            - $HOME/nltk_data:/root/nltk_data
+        depends_on:
+            - agraph.local.tdback.space

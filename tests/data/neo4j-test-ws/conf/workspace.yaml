@@ -1,0 +1,20 @@
+projects:
+  neo4j-test-ws:
+    resources:
+    - neo4j_default
+    neo4j_node_labels:
+    - neo4j-test-ws
+resources:
+  neo4j_default:
+    resource_type: neo4j_service
+    resource_url: bolt://localhost
+    user_name: neo4j
+  secret_store_default:
+    master_key_file: $HOME/.saapy/master-key.yml
+    resource_type: secret_store
+    secret_file: $HOME/.saapy/secret-store.yml
+    store_type: fernet_yaml_store
+workspace:
+  name: neo4j-test-ws
+  secret_store: secret_store_default
+  work_directory: $HOME/temp
