@@ -22,7 +22,7 @@ def directory(dirname=None):
 
 
 def build_image(ctx, image_name, tag):
-    with directory(image_name) as dir:
+    with directory('dock/{}'.format(image_name)):
         ctx.run('docker build -t saapy/{0}:{1} .'.format(image_name, tag))
 
 

@@ -16,7 +16,7 @@ import logging
 import requests
 from concurrent.futures import ThreadPoolExecutor
 import pandas as pd
-from saapy.etl import build_neo4j_query
+# from saapy.etl import build_neo4j_query
 
 
 logging.basicConfig(style='{',
@@ -292,33 +292,33 @@ def tpl(ctx):
     print(s)
 
 
-@task
-def commit_graph(ctx, workspace_configuration='conf/workspace.yml'):
-    ws = Workspace(workspace_configuration)
-    jpos = ws.project('jpos')
-    neo = jpos.resource('neo4j_default')
-    neo.connect()
-    neo_client = neo.impl
-    executor = ThreadPoolExecutor(max_workers=10)
-    query = build_neo4j_query(neo_client, executor)
-    q = query("""
-MATCH (c:jpos:GitCommit)<--(ga:jpos:GitAuthor)<--(a:jpos:Actor)
-WHERE SIZE(c.parents_hexsha) < 2 AND a.name <>"Travis"
-WITH c, a
-RETURN
-c.authored_datetime AS commit_datetime,
-a.name AS commit_author
-ORDER BY c.authored_date
-""")
-    df = q.result()
-    ts = pd.to_datetime(df['commit_datetime'].tolist())
-    # del df['commit_datetime']
-    df.index = ts
-    commit_counts = df.commit_author.value_counts()
-    top_commit_counts = commit_counts[commit_counts > commit_counts.quantile(0.9)]
-    top_committers = top_commit_counts.index.tolist()
-    top_df = df[df.commit_author.isin(top_committers)]
-    print(top_df.ix['2015'])
+# @task
+# def commit_graph(ctx, workspace_configuration='conf/workspace.yml'):
+#     ws = Workspace(workspace_configuration)
+#     jpos = ws.project('jpos')
+#     neo = jpos.resource('neo4j_default')
+#     neo.connect()
+#     neo_client = neo.impl
+#     executor = ThreadPoolExecutor(max_workers=10)
+#     query = build_neo4j_query(neo_client, executor)
+#     q = query("""
+# MATCH (c:jpos:GitCommit)<--(ga:jpos:GitAuthor)<--(a:jpos:Actor)
+# WHERE SIZE(c.parents_hexsha) < 2 AND a.name <>"Travis"
+# WITH c, a
+# RETURN
+# c.authored_datetime AS commit_datetime,
+# a.name AS commit_author
+# ORDER BY c.authored_date
+# """)
+#     df = q.result()
+#     ts = pd.to_datetime(df['commit_datetime'].tolist())
+#     # del df['commit_datetime']
+#     df.index = ts
+#     commit_counts = df.commit_author.value_counts()
+#     top_commit_counts = commit_counts[commit_counts > commit_counts.quantile(0.9)]
+#     top_committers = top_commit_counts.index.tolist()
+#     top_df = df[df.commit_author.isin(top_committers)]
+#     print(top_df.ix['2015'])
     # ct = pd.crosstab(top_df.index, top_df.commit_author, margins=True)
     # print(ct.index)
     # ct.index = pd.to_datetime(ct.index)
