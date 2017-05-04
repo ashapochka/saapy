@@ -1,7 +1,7 @@
 from invoke import task
 from saapy import SecretStore, dump_configuration, Workspace
 from saapy.connectors import ScitoolsClient
-from saapy.connectors.neo4j import Neo4jClient
+from saapy.graphdb import Neo4jClient
 from saapy.connectors import GitClient
 from saapy.etl import ScitoolsETL
 from saapy.etl import GitETL
@@ -24,20 +24,6 @@ logging.basicConfig(style='{',
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 logging.getLogger('neo4j.bolt').setLevel(logging.WARNING)
-
-
-@task
-def hello(ctx):
-    """
-    checks invoke works
-    :return: None
-    """
-    print("Hello!")
-    logger.debug('debug message')
-    logger.info('info message')
-    logger.warn('warn message')
-    logger.error('error message')
-    logger.critical('critical message')
 
 
 @task
@@ -156,7 +142,7 @@ def scitools_to_structs(udb_path):
 
 # noinspection PyUnusedLocal
 @task
-def neo4j_password(ctx, user='neo4j'):
+def neo4j_password(ctx, user='graphdb'):
     password = getpass.getpass(prompt='Neo4j password for {0}: '.format(user))
     ctx['neo4j_password'] = password
 
@@ -220,44 +206,6 @@ def import_git_to_neo4j(ctx, git_path, neo4j_url='bolt://localhost',
     git_client.connect()
     etl = GitETL(git_client.repo)
     etl.import_to_neo4j(neo4j_client, labels=label_list)
-
-
-# ns = Collection()
-# ns.add_task(import_git_to_neo4j)
-
-@task
-def hello_future(ctx):
-    from concurrent.futures import ThreadPoolExecutor
-    from time import sleep
-    import threading
-
-    dummy_event = threading.Event()
-
-    def long_task(exec_time):
-        print('starting execution of {0}'.format(exec_time))
-        # sleep(exec_time)
-        dummy_event.wait(timeout=exec_time)
-        return 'done {0}'.format(exec_time)
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future = executor.submit(long_task, 30)
-
-        print('ok')
-        dummy_event.set()
-        print(future.result())
-
-
-@task
-def myip(ctx):
-    """
-    retrieves external ip address of the pc running this function
-    by calling http://myexternalip.com
-    :return: external ip address as a string
-    """
-    url = 'http://myexternalip.com/raw'
-    r = requests.get(url)
-    ext_ip = r.text.strip()
-    print(ext_ip)
 
 
 @task

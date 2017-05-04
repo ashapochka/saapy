@@ -1,6 +1,6 @@
 from .connectors import SonarClient
-from .connectors.neo4j import Neo4jClient
-from .connectors import GitClient
+from .graphdb import Neo4jClient
+from .vcs import GitClient
 from .connectors import ScitoolsClient
 from .connectors import JiraClient
 

@@ -4,7 +4,7 @@ from typing import List
 
 import pytest
 from unittest.mock import MagicMock
-from saapy.connectors.neo4j import *
+from saapy.graphdb import *
 
 
 class DummyQueryFactory(Neo4jQueryFactory):

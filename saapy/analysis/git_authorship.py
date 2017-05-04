@@ -7,8 +7,8 @@ from fuzzywuzzy import fuzz
 import networkx as nx
 from sklearn.preprocessing import MinMaxScaler
 
-from saapy.connectors.neo4j import Neo4jQueryFactory
-from saapy.connectors.neo4j import Neo4jQueryAsyncInvoker
+from saapy.graphdb import Neo4jQueryFactory
+from saapy.graphdb import Neo4jQueryAsyncInvoker
 from .utils import (dicts_to_dataframe, dataframe_to_dicts, name_from_email)
 
 

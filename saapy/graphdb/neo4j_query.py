@@ -4,7 +4,7 @@ from typing import List
 from toolz import juxt
 from itertools import repeat
 
-from saapy.connectors.neo4j import Neo4jClient
+from saapy.graphdb import Neo4jClient
 
 
 class Neo4jAbstractQuery:
