@@ -1,4 +1,7 @@
 # coding=utf-8
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import List
 
 import pandas as pd
@@ -92,3 +95,27 @@ def dataframe_to_dicts(dataframe: pd.DataFrame) -> List[dict]:
     names and values from the column values
     """
     return dataframe.to_dict(orient='records')
+
+
+def serialize_datetime(obj):
+    """JSON serializer for objects not serializable by default json code"""
+
+    if isinstance(obj, datetime):
+        serial = obj.isoformat()
+        return serial
+    raise TypeError("Type {} not serializable".format(type(obj)))
+
+
+def dump_pretty_json(obj, f):
+    if isinstance(f, str):
+        path = Path(f)
+    elif isinstance(f, Path):
+        path = f
+    else:
+        path = None
+    if path:
+        with path.open('w') as fp:
+            json.dump(obj, fp, indent=4, default=serialize_datetime)
+    else:
+        fp = f
+        json.dump(obj, fp, indent=4, default=serialize_datetime)

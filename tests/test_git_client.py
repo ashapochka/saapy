@@ -1,10 +1,10 @@
 # coding=utf-8
-import json
 from pathlib import Path
 
 from git import Commit
 from networkx.readwrite import json_graph
 
+from analysis import dump_pretty_json
 from saapy.vcs import GitClient
 from vcs.git_client import check_file_move
 
@@ -23,9 +23,11 @@ def test_to_commit():
 def test_build_commit_graph():
     git_client = GitClient(repository_path)
     graph = git_client.build_commit_graph()
-    graph.add_commit_tree(git_client.to_commit(graph.ref_labels.pop()))
-    with graph_json_path.open(mode='w') as f:
-        json.dump(json_graph.node_link_data(graph.commit_graph), f, indent=4)
+    master_commit = graph.commit_node(ref_name='origin/master')
+    assert master_commit is not None
+    graph.add_commit_tree(git_client.to_commit(master_commit['hexsha']))
+    dump_pretty_json(json_graph.node_link_data(graph.commit_graph),
+                     graph_json_path)
 
 
 def test_file_move_parsing():

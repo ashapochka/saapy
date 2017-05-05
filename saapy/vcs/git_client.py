@@ -23,25 +23,46 @@ GitHistory = namedtuple('GitHistory',
 
 class GitGraph:
     commit_graph = None
-    ref_labels = None
-    tag_labels = None
+    ref_commits = None
+    tag_commits = None
 
     def __init__(self):
         self.commit_graph = nx.DiGraph()
-        self.ref_labels = set()
-        self.tag_labels = set()
+        self.ref_commits = set()
+        self.tag_commits = set()
+
+    def filter_by_attr(self, node_labels, **kwargs):
+        def predicate(hexsha):
+            n = self.commit_node(hexsha=hexsha)
+            eq = lambda key: n[key] != kwargs[key]
+            return next(filter(eq, kwargs.keys()), None) is None
+        return filter(predicate, node_labels)
+
+    def commit_node(self, hexsha=None, ref_name=None, tag_name=None):
+        if hexsha:
+            commit_hexsha = hexsha
+        elif ref_name:
+            commit_hexsha = next(self.filter_by_attr(self.ref_commits,
+                                                     ref_name=ref_name), None)
+        elif tag_name:
+            commit_hexsha = next(self.filter_by_attr(self.tag_commits,
+                                                     tag_name=tag_name), None)
+        if commit_hexsha:
+            return self.commit_graph.node[commit_hexsha]
+        else:
+            return None
 
     def add_ref(self, ref: Reference):
         self.commit_graph.add_node(ref.commit.hexsha,
                                    ref_name=ref.name,
                                    ref_head=True)
-        self.ref_labels.add(ref.commit.hexsha)
+        self.ref_commits.add(ref.commit.hexsha)
 
     def add_tag(self, tag: TagReference):
         self.commit_graph.add_node(tag.commit.hexsha,
                                    tag_name=tag.name,
                                    tag_head=True)
-        self.tag_labels.add(tag.commit.hexsha)
+        self.tag_commits.add(tag.commit.hexsha)
 
     def add_actor(self, actor):
         name = actor.name
@@ -61,10 +82,10 @@ class GitGraph:
             hexsha=hexsha,
             authored_date=commit.authored_date,
             author_tz_offset=commit.author_tz_offset,
-            authored_datetime=str(commit.authored_datetime),
+            authored_datetime=commit.authored_datetime,
             committed_date=commit.committed_date,
             committer_tz_offset=commit.committer_tz_offset,
-            committed_datetime=str(commit.committed_datetime),
+            committed_datetime=commit.committed_datetime,
             summary=commit.summary,
             message=commit.message,
             encoding=commit.encoding,
