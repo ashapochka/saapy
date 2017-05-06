@@ -101,7 +101,8 @@ ACTOR_SIMILARITY_FIELDS = ['possible',
                            'proper_name1',
                            'proper_name2',
                            'proper_email_name1',
-                           'proper_email_name2']
+                           'proper_email_name2',
+                           'explicit']
 ActorSimilarity = recordclass('ActorSimilarity', ACTOR_SIMILARITY_FIELDS)
 
 ACTOR_SIMILARITY_SETTINGS_FIELDS = ['min_name_ratio',
@@ -127,7 +128,7 @@ class ActorSimilarityGraph:
                                                min_name_email_ratio=50)
         self.settings = settings
 
-    def add_actor(self, actor: Actor):
+    def add_actor(self, actor: Actor, link_similar=True):
         if self.actor_graph.has_node(actor.actor_id):
             return
         self.actor_graph.add_node(actor.actor_id, actor=actor)
@@ -135,11 +136,19 @@ class ActorSimilarityGraph:
             if actor.actor_id == actor_id:
                 continue
             other_actor = actor_attrs['actor']
-            similarity = self.compute_similarity(actor, other_actor)
-            if similarity.possible:
-                self.actor_graph.add_edge(actor.actor_id,
-                                          other_actor.actor_id,
-                                          similarity=similarity)
+            if link_similar:
+                similarity = self.evaluate_similarity(actor, other_actor)
+                if similarity.possible:
+                    self.actor_graph.add_edge(actor.actor_id,
+                                              other_actor.actor_id,
+                                              similarity=similarity,
+                                              confidence=None)
+
+    def link_same_actor(self, actor_id1: str, actor_id2: str,
+                        confidence: float = 1):
+        self.actor_graph.add_edge(actor_id1, actor_id2, confidence=confidence)
+        if 'similarity' not in self.actor_graph[actor_id1][actor_id2]:
+            self.actor_graph[actor_id1][actor_id2]['similarity'] = None
 
     def evaluate_similarity(self, actor: Actor,
                             other_actor: Actor) -> ActorSimilarity:
