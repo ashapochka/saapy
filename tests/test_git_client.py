@@ -23,9 +23,7 @@ def test_to_commit():
 def test_build_commit_graph():
     git_client = GitClient(repository_path)
     graph = git_client.build_commit_graph()
-    master_commit = graph.commit_node(ref_name='origin/master')
-    assert master_commit is not None
-    graph.add_commit_tree(git_client.to_commit(master_commit['hexsha']))
+    git_client.add_commit_tree(graph, ref_name='origin/master')
     dump_pretty_json(json_graph.node_link_data(graph.commit_graph),
                      graph_json_path)
 

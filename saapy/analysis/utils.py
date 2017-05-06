@@ -1,11 +1,11 @@
 # coding=utf-8
+import csv
 import json
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
 import pandas as pd
-from toolz import *
 
 
 def split_name_by_character_type(name: str, camel: bool = True) -> List[str]:
@@ -57,20 +57,6 @@ def split_name_by_character_type(name: str, camel: bool = True) -> List[str]:
     return parts
 
 
-_transform = compose(' '.join,
-                     partial(filter, lambda s: s.isalpha()),
-                     split_name_by_character_type)
-
-
-def name_from_email(email_name: str) -> List[str]:
-    """
-    splits an email name into parts separated by ., _, camel casing and similar
-    :param email_name: first part of the email address
-    :return: list of name parts
-    """
-    return _transform(email_name)
-
-
 def dicts_to_dataframe(records: List[dict]) -> pd.DataFrame:
     """
     converts a list of records as dictionaries with the same keys into
@@ -107,15 +93,29 @@ def serialize_datetime(obj):
 
 
 def dump_pretty_json(obj, f):
-    if isinstance(f, str):
-        path = Path(f)
-    elif isinstance(f, Path):
-        path = f
-    else:
-        path = None
+    path = to_path(f)
     if path:
         with path.open('w') as fp:
             json.dump(obj, fp, indent=4, default=serialize_datetime)
     else:
         fp = f
         json.dump(obj, fp, indent=4, default=serialize_datetime)
+
+
+def to_path(file_path):
+    if isinstance(file_path, str):
+        path = Path(file_path)
+    elif isinstance(file_path, Path):
+        path = file_path
+    else:
+        path = None
+    return path
+
+
+def empty_dict(keys):
+    return {key: None for key in keys}
+
+
+def csv_to_list(file_path):
+    with to_path(file_path).open(newline='') as f:
+        return list(csv.reader(f, delimiter=','))

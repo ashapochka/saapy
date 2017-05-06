@@ -7,9 +7,10 @@ from fuzzywuzzy import fuzz
 import networkx as nx
 from sklearn.preprocessing import MinMaxScaler
 
+from .actor import ActorParser
 from saapy.graphdb import Neo4jQueryFactory
 from saapy.graphdb import Neo4jQueryAsyncInvoker
-from .utils import (dicts_to_dataframe, dataframe_to_dicts, name_from_email)
+from .utils import (dicts_to_dataframe, dataframe_to_dicts)
 
 
 class GitAuthorQueryFactory(Neo4jQueryFactory):
@@ -141,11 +142,12 @@ class GitAuthorAnalysis:
         return authors
 
     def _enrich_authors(self, authors):
+        parser = ActorParser()
         def extract_name(x):
             is_valid_email = pyisemail.is_email(x['author_email'])
             email_name = x['author_email'].split('@')[
                 0] if is_valid_email else ''
-            name_from_email_name = name_from_email(email_name)
+            name_from_email_name = parser.parse_name(email_name)
             return pd.Series([is_valid_email, email_name, name_from_email_name])
 
         newcols = authors.apply(extract_name, axis=1)

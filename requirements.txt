@@ -50,6 +50,7 @@ spacy
 gensim
 uritemplate
 github3.py
+recordclass
 
 # database drivers
 neo4j-driver #neo4j official driver

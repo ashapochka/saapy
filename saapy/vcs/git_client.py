@@ -25,11 +25,13 @@ class GitGraph:
     commit_graph = None
     ref_commits = None
     tag_commits = None
+    actors = None
 
     def __init__(self):
         self.commit_graph = nx.DiGraph()
         self.ref_commits = set()
         self.tag_commits = set()
+        self.actors = set()
 
     def filter_by_attr(self, node_labels, **kwargs):
         def predicate(hexsha):
@@ -68,6 +70,7 @@ class GitGraph:
         name = actor.name
         email = actor.email
         node_label = '{} <{}>'.format(name, email)
+        self.actors.add(node_label)
         self.commit_graph.add_node(node_label,
                                    name=name,
                                    email=email,
@@ -132,6 +135,7 @@ class GitGraph:
         self._add_tree(commit.tree)
         self.commit_graph.add_edge(commit.hexsha, commit.tree.path,
                                    edge_type='tree')
+        return commit.hexsha
 
     def _add_tree(self, tree: Tree):
         self.commit_graph.add_node(tree.path, path=tree.path, node_type='tree')
@@ -226,6 +230,14 @@ class GitClient:
             graph.add_tag(tag)
         logger.info('history export complete')
         return graph
+
+    def add_commit_tree(self, graph: GitGraph,
+                        hexsha=None, ref_name=None, tag_name=None):
+        commit_node = graph.commit_node(hexsha=hexsha,
+                                        ref_name=ref_name,
+                                        tag_name=tag_name)
+        graph.add_commit_tree(self.to_commit(commit_node['hexsha']))
+        return commit_node['hexsha']
 
     def revision_history(self):
         history = GitHistory()
