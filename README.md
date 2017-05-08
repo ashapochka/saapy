@@ -8,7 +8,7 @@ system for its quality and technical debt based on this graph.
 The framework is a research tool and is not of stable production quality yet.
 
 * [Documentation](docs/index.md)
-* [IDempiere Assessment Demo](notebooks/idempiere-assessment.ipynb)
+* [IDempiere Assessment Demo](samples/idempiere-assessment.ipynb)
 
 ## Installation Steps
 

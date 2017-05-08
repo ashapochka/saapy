@@ -57,11 +57,11 @@ def codecheck(ctx):
 def jupyter(ctx):
     """
     starts jupyter notebook server on the 8888++ port
-    with its work directory in ./notebooks
+    with its work directory in ./samples
     :param ctx:
     :return: None
     """
-    ctx.run("jupyter-notebook --notebook-dir=notebooks")
+    ctx.run("jupyter-notebook --notebook-dir=samples")
 
 @task
 def gen_antlr_tsql(ctx):

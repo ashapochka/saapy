@@ -26,12 +26,14 @@ class GitGraph:
     ref_commits = None
     tag_commits = None
     actors = None
+    commit_trees = None
 
     def __init__(self):
         self.commit_graph = nx.DiGraph()
         self.ref_commits = set()
         self.tag_commits = set()
         self.actors = set()
+        self.commit_trees = dict()
 
     def filter_by_attr(self, node_labels, **kwargs):
         def predicate(hexsha):
@@ -85,10 +87,10 @@ class GitGraph:
             hexsha=hexsha,
             authored_date=commit.authored_date,
             author_tz_offset=commit.author_tz_offset,
-            authored_datetime=commit.authored_datetime,
+            authored_datetime=commit.authored_datetime.isoformat(),
             committed_date=commit.committed_date,
             committer_tz_offset=commit.committer_tz_offset,
-            committed_datetime=commit.committed_datetime,
+            committed_datetime=commit.committed_datetime.isoformat(),
             summary=commit.summary,
             message=commit.message,
             encoding=commit.encoding,
@@ -98,7 +100,8 @@ class GitGraph:
             stats_total_deletions=stats.total['deletions'],
             stats_total_files=stats.total['files'],
             stats_total_insertions=stats.total['insertions'],
-            node_type='commit'
+            node_type='commit',
+            parent_count=len(parents)
         )
         self.commit_graph.add_node(commit.hexsha, attr_dict=commit_attrs)
         author_label = self.add_actor(commit.author)
@@ -132,23 +135,25 @@ class GitGraph:
                                        edge_type='included_file')
 
     def add_commit_tree(self, commit: Commit):
-        self._add_tree(commit.tree)
-        self.commit_graph.add_edge(commit.hexsha, commit.tree.path,
-                                   edge_type='tree')
+        self.commit_trees[commit.hexsha] = commit_tree = nx.DiGraph()
+        self._add_tree(commit_tree, commit.tree)
         return commit.hexsha
 
-    def _add_tree(self, tree: Tree):
-        self.commit_graph.add_node(tree.path, path=tree.path, node_type='tree')
+    def _add_tree(self, commit_tree: nx.DiGraph, tree: Tree,
+                  empty_replacement='.'):
+        tree_node_id = tree.path or empty_replacement
+        commit_tree.add_node(tree_node_id, path=tree.path, node_type='tree')
         for blob in tree.blobs:
-            self.commit_graph.add_node(blob.path,
-                                       path=blob.path,
-                                       node_type='file')
-            self.commit_graph.add_edge(tree.path, blob.path,
-                                       edge_type='tree')
+            commit_tree.add_node(blob.path,
+                                 path=blob.path,
+                                 node_type='file')
+            commit_tree.add_edge(tree_node_id, blob.path,
+                                 edge_type='tree')
         for subtree in tree.trees:
-            self._add_tree(subtree)
-            self.commit_graph.add_edge(tree.path, subtree.path,
-                                       edge_type='tree')
+            subtree_node_id = self._add_tree(commit_tree, subtree)
+            commit_tree.add_edge(tree_node_id, subtree_node_id,
+                                 edge_type='tree')
+        return tree_node_id
 
 
 class GitClient:

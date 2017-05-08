@@ -2,4 +2,4 @@
 
 from .utils import *
 from .git_authorship import GitAuthorAnalysis, GitAuthorQueryFactory
-from .actor import ActorParser, ParsedName, ParsedEmail
+from .actor import (ActorParser, ParsedName, ParsedEmail, ActorSimilarityGraph)

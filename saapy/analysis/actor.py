@@ -36,6 +36,9 @@ class Actor:
         self.parsed_email = None
         self.parsed_name = None
 
+    def __repr__(self):
+        return "Actor('{}')".format(self.actor_id)
+
 
 class ActorParser:
     role_names = None
@@ -69,10 +72,11 @@ class ActorParser:
         return parsed_name
 
     def parse_email(self, email: str) -> ParsedEmail:
+        lower_email = email.lower()
         parsed_email = ParsedEmail(**empty_dict(PARSED_EMAIL_FIELDS))
-        parsed_email.email = email
-        parsed_email.valid = pyisemail.is_email(email)
-        email_parts = email.split('@')
+        parsed_email.email = lower_email
+        parsed_email.valid = pyisemail.is_email(lower_email)
+        email_parts = lower_email.split('@')
         parsed_email.name = email_parts[0]
         if len(email_parts) == 2:
             parsed_email.domain = email_parts[1]
@@ -81,10 +85,13 @@ class ActorParser:
         parsed_email.parsed_name  = self.parse_name(parsed_email.name)
         return parsed_email
 
-    def parse_actor(self, name: str, email: str) -> Actor:
+    def parse_actor(self, name: str, email: str, name_from_email=True) -> Actor:
+        parsed_email = self.parse_email(email)
+        if not name and name_from_email:
+            name = parsed_email.parsed_name.name
         actor = Actor(name, email)
         actor.parsed_name = self.parse_name(name)
-        actor.parsed_email = self.parse_email(email)
+        actor.parsed_email = parsed_email
         return actor
 
 
@@ -122,10 +129,10 @@ class ActorSimilarityGraph:
                                   self.similar_emails,
                                   self.similar_proper_names]
         if settings is None:
-            settings = ActorSimilaritySettings(min_name_ratio=50,
-                                               min_email_domain_ratio=50,
-                                               min_email_name_ratio=50,
-                                               min_name_email_ratio=50)
+            settings = ActorSimilaritySettings(min_name_ratio=55,
+                                               min_email_domain_ratio=55,
+                                               min_email_name_ratio=55,
+                                               min_name_email_ratio=55)
         self.settings = settings
 
     def add_actor(self, actor: Actor, link_similar=True):
@@ -144,17 +151,20 @@ class ActorSimilarityGraph:
                                               similarity=similarity,
                                               confidence=None)
 
-    def link_same_actor(self, actor_id1: str, actor_id2: str,
+    def link_actors(self, actor1_id: str, actor2_id: str,
                         confidence: float = 1):
-        self.actor_graph.add_edge(actor_id1, actor_id2, confidence=confidence)
-        if 'similarity' not in self.actor_graph[actor_id1][actor_id2]:
-            self.actor_graph[actor_id1][actor_id2]['similarity'] = None
+        self.actor_graph.add_edge(actor1_id, actor2_id, confidence=confidence)
+        if 'similarity' not in self.actor_graph[actor1_id][actor2_id]:
+            self.actor_graph[actor1_id][actor2_id]['similarity'] = None
+
+    def unlink_actors(self, actor1_id: str, actor2_id: str):
+        self.actor_graph.remove_edge(actor1_id, actor2_id)
 
     def evaluate_similarity(self, actor: Actor,
                             other_actor: Actor) -> ActorSimilarity:
         similarity = self.build_similarity(actor, other_actor)
         checks = list(self.similarity_checks)
-        while not similarity.possible or len(checks):
+        while not similarity.possible and len(checks):
             check = checks.pop()
             similarity.possible = check(similarity)
         return similarity
@@ -215,3 +225,8 @@ class ActorSimilarityGraph:
     @staticmethod
     def identical_actors(s: ActorSimilarity):
         return s.identical
+
+    def group_similar_actors(self):
+        similar_actor_groups = [list(g) for g in
+                                nx.connected_components(self.actor_graph)]
+        return similar_actor_groups
