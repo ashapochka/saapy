@@ -5,6 +5,8 @@ from pathlib import Path
 from pprint import pprint
 
 import networkx as nx
+from recordclass import recordclass
+import understand
 
 from analysis import ActorSimilarityGraph
 from saapy.analysis import ActorParser, csv_to_list
@@ -12,13 +14,31 @@ from saapy.vcs import GitClient
 
 
 def main():
-    root_path = Path('../../../3party')
+    root_path = Path('../../../3party').resolve()
     git_repo_path = root_path / 'povray'
     analysis_dir_path = root_path / 'povray-analysis'
     shelve_db_path = analysis_dir_path / 'povray.shelve'
+    scitools_udb_path = analysis_dir_path / 'povray-master1.udb'
     git_graph = build_git_graph(git_repo_path, shelve_db_path)
     similarity_graph = build_similarity_graph(git_graph)
     # print_similarity_groups(similarity_graph)
+    source_files = collect_source_files(git_graph)
+    # pprint(git_graph.commit_graph.in_edges(nbunch=source_files))
+    file_commits = OrderedDict()
+    for f in source_files:
+        file_commits[f] = collect_commits(git_graph.commit_graph, f)
+    write_files_to_scitools_input_file(
+        source_files, analysis_dir_path / 'scitools-src.txt', git_repo_path)
+    scitools_udb = understand.open(str(scitools_udb_path))
+    for file_entity in scitools_udb.ents('file'):
+        metric_names = file_entity.metrics()
+        if len(metric_names):
+            print(file_entity.longname())
+            pprint(file_entity.metric(metric_names))
+    # pprint(file_commits)
+
+
+def collect_source_files(git_graph):
     master_commit = git_graph.commit_node(ref_name='origin/master')['hexsha']
     master_tree = git_graph.commit_trees[master_commit]
     source_tree_edges = list(nx.bfs_edges(master_tree, 'source'))
@@ -26,25 +46,31 @@ def main():
                     if master_tree.node[edge[1]]['node_type'] == 'file']
     source_files = [f for f in source_files
                     if f.endswith('.cpp') or f.endswith('.h')]
-    # pprint(git_graph.commit_graph.in_edges(nbunch=source_files))
-    file_commits = OrderedDict()
-    for f in source_files:
-        file_commits[f] = collect_commits(git_graph.commit_graph, f)
-    pprint(file_commits)
-    # pprint(git_graph.commit_graph['4f39fd014b6c8806699f157b6700646f39539fac'])
-    # pprint(git_graph.commit_graph.in_edges('source/backend/frame.h'))
+    return source_files
 
+
+def write_files_to_scitools_input_file(files, output_path, root_dir):
+    with output_path.open('w') as out:
+        for f in files:
+            print(root_dir / f, file=out)
+
+
+FileCommit = recordclass('FileCommit', ['commit', 'lines', 'when'])
 
 
 def collect_commits(commit_graph: nx.DiGraph, file_node):
     commits = []
     for predecessor in commit_graph.predecessors(file_node):
-        predecessor_type = commit_graph.node[predecessor]['node_type']
+        pred_node = commit_graph.node[predecessor]
+        predecessor_type = pred_node['node_type']
         if predecessor_type == 'commit':
-            if commit_graph.node[predecessor]['parent_count'] > 1:
+            if pred_node['parent_count'] > 1:
                 pass
             else:
-                commits.append(predecessor)
+                commits.append(FileCommit(
+                    commit=predecessor,
+                    lines=commit_graph[predecessor][file_node]['lines'],
+                    when=pred_node['authored_datetime']))
         elif predecessor_type == 'file':
             commits.extend(collect_commits(commit_graph, predecessor))
         else:

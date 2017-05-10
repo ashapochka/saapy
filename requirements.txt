@@ -52,6 +52,8 @@ gensim
 uritemplate
 github3.py
 recordclass
+textacy
+pyenchant
 
 # database drivers
 neo4j-driver #neo4j official driver

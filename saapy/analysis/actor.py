@@ -7,7 +7,8 @@ from recordclass import recordclass
 from toolz import *
 from fuzzywuzzy import fuzz
 
-from analysis import split_name_by_character_type, empty_dict
+from .utils import empty_dict
+from .lexeme import LexemeParser, split_lexeme, cleanup_proper_name
 
 PARSED_EMAIL_FIELDS = ['email', 'valid', 'name', 'domain', 'parsed_name']
 
@@ -43,10 +44,6 @@ class Actor:
 class ActorParser:
     role_names = None
 
-    _transform = compose(' '.join,
-                         partial(filter, lambda s: s.isalpha()),
-                         split_name_by_character_type)
-
     def __init__(self):
         self.role_names = dict()
 
@@ -68,7 +65,7 @@ class ActorParser:
             parsed_name.name = lower_name
         else:
             parsed_name.name_type = 'proper'
-            parsed_name.name = self._transform(lower_name)
+            parsed_name.name = cleanup_proper_name(name)
         return parsed_name
 
     def parse_email(self, email: str) -> ParsedEmail:

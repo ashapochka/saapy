@@ -8,53 +8,7 @@ from typing import List
 import pandas as pd
 
 
-def split_name_by_character_type(name: str, camel: bool = True) -> List[str]:
-    """
-    splits an input string into parts by camel case pattern,
-    underscores, acronyms, digits, etc.
 
-    Example:
-
-    ss = [None, "", "ab de fg", "ab   de fg", "ab:cd:ef",
-          "number5", "fooBar", "foo200Bar", "ASFRules"]
-
-    for s in ss:
-        print(split_by_character_type(s))
-
-    []
-    []
-    ['ab', ' ', 'de', ' ', 'fg']
-    ['ab', '   ', 'de', ' ', 'fg']
-    ['ab', ':', 'cd', ':', 'ef']
-    ['number', '5']
-    ['foo', 'Bar']
-    ['foo', '200', 'Bar']
-    ['ASF', 'Rules']
-
-    :param name: input string
-    :param camel: account for camel case if true
-    :return: list of string parts
-    """
-    if not name:
-        return []
-    parts = []
-    token_start = 0
-    for pos in range(1, len(name)):
-        if ((name[pos].islower() and name[pos-1].islower()) or
-            (name[pos].isupper() and name[pos-1].isupper()) or
-            (name[pos].isdigit() and name[pos-1].isdigit()) or
-            (not name[pos].isalnum() and not name[pos-1].isalnum())):
-            continue
-        if camel and name[pos].islower() and name[pos-1].isupper():
-            new_token_start = pos - 1
-            if new_token_start != token_start:
-                parts.append(name[token_start: new_token_start])
-                token_start = new_token_start
-        else:
-            parts.append(name[token_start: pos])
-            token_start = pos
-    parts.append(name[token_start: len(name)])
-    return parts
 
 
 def dicts_to_dataframe(records: List[dict]) -> pd.DataFrame:
