@@ -1,10 +1,10 @@
 from invoke import task
 from saapy import SecretStore, dump_configuration, Workspace
-from saapy.connectors import ScitoolsClient
+from saapy.issue import ScitoolsClient
 from saapy.graphdb import Neo4jClient
-from saapy.connectors import GitClient
+from saapy.vcs import GitClient
 from saapy.etl import ScitoolsETL
-from saapy.etl import GitETL
+from saapy.vcs import GitETL
 from saapy.lang.tsql import print_tsql
 from timeit import default_timer as timer
 from datetime import timedelta, datetime
@@ -134,7 +134,7 @@ def export_scitools(ctx, udb_path, output_path):
 
 def scitools_to_structs(udb_path):
     scitools_client = ScitoolsClient(udb_path)
-    scitools_client.connect()
+    scitools_client.open_udb()
     etl = ScitoolsETL(scitools_client.udb)
     scitools_db = dict()
     etl.transfer_to_struct_db(scitools_db)

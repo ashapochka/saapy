@@ -13,12 +13,16 @@ from collections import namedtuple
 
 import networkx as nx
 from git import Repo, Commit, Reference, TagReference, Tree
+from recordclass import recordclass
 
 logger = logging.getLogger(__name__)
 
 
 GitHistory = namedtuple('GitHistory',
                         ['GitCommit', 'GitFileDiffStat', 'GitRef'])
+
+
+FileCommit = recordclass('FileCommit', ['commit', 'lines', 'when'])
 
 
 class GitGraph:
@@ -154,6 +158,33 @@ class GitGraph:
             commit_tree.add_edge(tree_node_id, subtree_node_id,
                                  edge_type='tree')
         return tree_node_id
+
+    def collect_commits(self, file_node):
+        commits = []
+        for predecessor in self.commit_graph.predecessors(file_node):
+            pred_node = self.commit_graph.node[predecessor]
+            predecessor_type = pred_node['node_type']
+            if predecessor_type == 'commit':
+                if pred_node['parent_count'] > 1:
+                    pass
+                else:
+                    commits.append(FileCommit(
+                        commit=predecessor,
+                        lines=self.commit_graph[predecessor][file_node]['lines'],
+                        when=pred_node['authored_datetime']))
+            elif predecessor_type == 'file':
+                commits.extend(self.collect_commits(predecessor))
+            else:
+                pass
+        return commits
+
+    def collect_files(self, commit, tree_node='.', predicate=lambda f: True):
+        commit_tree = self.commit_trees[commit]
+        tree_edges = list(nx.bfs_edges(commit_tree, tree_node))
+        files = [edge[1] for edge in tree_edges
+                 if (commit_tree.node[edge[1]]['node_type'] == 'file'
+                     and predicate(edge[1]))]
+        return files
 
 
 class GitClient:

@@ -5,7 +5,7 @@ implementation of ETL from scitools understand database to other storages
 """
 
 from typing import List
-from saapy.connectors.neo4j import Neo4jClient
+from saapy.graphdb import Neo4jClient
 import logging
 
 

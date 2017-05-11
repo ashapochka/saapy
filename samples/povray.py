@@ -1,81 +1,48 @@
 # coding=utf-8
+import contextlib
 import shelve
 from collections import OrderedDict
 from pathlib import Path
 from pprint import pprint
 
 import networkx as nx
-from recordclass import recordclass
 import understand
+
+import sys
+from invoke import Program, task, Collection
 
 from analysis import ActorSimilarityGraph
 from saapy.analysis import ActorParser, csv_to_list
 from saapy.vcs import GitClient
 
 
-def main():
-    root_path = Path('../../../3party').resolve()
-    git_repo_path = root_path / 'povray'
-    analysis_dir_path = root_path / 'povray-analysis'
-    shelve_db_path = analysis_dir_path / 'povray.shelve'
-    scitools_udb_path = analysis_dir_path / 'povray-master1.udb'
-    git_graph = build_git_graph(git_repo_path, shelve_db_path)
-    similarity_graph = build_similarity_graph(git_graph)
-    # print_similarity_groups(similarity_graph)
-    source_files = collect_source_files(git_graph)
-    # pprint(git_graph.commit_graph.in_edges(nbunch=source_files))
-    file_commits = OrderedDict()
-    for f in source_files:
-        file_commits[f] = collect_commits(git_graph.commit_graph, f)
-    write_files_to_scitools_input_file(
-        source_files, analysis_dir_path / 'scitools-src.txt', git_repo_path)
-    scitools_udb = understand.open(str(scitools_udb_path))
-    for file_entity in scitools_udb.ents('file'):
-        metric_names = file_entity.metrics()
-        if len(metric_names):
-            print(file_entity.longname())
-            pprint(file_entity.metric(metric_names))
-    # pprint(file_commits)
+class Workspace:
+    root_path: Path
+    git_repo_path: Path
+    analysis_dir_path: Path
+    shelve_db_path: Path
+    scitools_udb_path: Path
+
+    def __init__(self, root_dir):
+        self.root_path = Path(root_dir).resolve()
+        self.git_repo_path = self.root_path / 'povray'
+        self.analysis_dir_path = self.root_path / 'povray-analysis'
+        self.shelve_db_path = self.analysis_dir_path / 'povray.shelve'
+        self.scitools_udb_path = self.analysis_dir_path / 'povray-master1.udb'
 
 
 def collect_source_files(git_graph):
     master_commit = git_graph.commit_node(ref_name='origin/master')['hexsha']
-    master_tree = git_graph.commit_trees[master_commit]
-    source_tree_edges = list(nx.bfs_edges(master_tree, 'source'))
-    source_files = [edge[1] for edge in source_tree_edges
-                    if master_tree.node[edge[1]]['node_type'] == 'file']
-    source_files = [f for f in source_files
-                    if f.endswith('.cpp') or f.endswith('.h')]
-    return source_files
+    return git_graph.collect_files(
+        master_commit,
+        tree_node='source',
+        predicate=lambda f: f.endswith(('.cpp', '.h')))
 
 
 def write_files_to_scitools_input_file(files, output_path, root_dir):
     with output_path.open('w') as out:
         for f in files:
             print(root_dir / f, file=out)
-
-
-FileCommit = recordclass('FileCommit', ['commit', 'lines', 'when'])
-
-
-def collect_commits(commit_graph: nx.DiGraph, file_node):
-    commits = []
-    for predecessor in commit_graph.predecessors(file_node):
-        pred_node = commit_graph.node[predecessor]
-        predecessor_type = pred_node['node_type']
-        if predecessor_type == 'commit':
-            if pred_node['parent_count'] > 1:
-                pass
-            else:
-                commits.append(FileCommit(
-                    commit=predecessor,
-                    lines=commit_graph[predecessor][file_node]['lines'],
-                    when=pred_node['authored_datetime']))
-        elif predecessor_type == 'file':
-            commits.extend(collect_commits(commit_graph, predecessor))
-        else:
-            pass
-    return commits
 
 
 def build_similarity_graph(git_graph):
@@ -116,5 +83,56 @@ def print_similarity_groups(similarity_graph):
             print(actor1_id, '->', actor2_id, data)
 
 
+
+@task
+def cleanup(ctx):
+    ws = Workspace(ctx.config.povray.parent_dir)
+    with contextlib.suppress(FileNotFoundError):
+        ws.shelve_db_path.unlink()
+        ws.scitools_udb_path.unlink()
+
+
+@task
+def git_graph(ctx):
+    ws = Workspace(ctx.config.povray.parent_dir)
+    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
+    print(len(git_graph.commit_graph))
+
+
+@task
+def sim_graph(ctx):
+    ws = Workspace(ctx.config.povray.parent_dir)
+    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
+    similarity_graph = build_similarity_graph(git_graph)
+    print_similarity_groups(similarity_graph)
+
+
+@task
+def understand(ctx):
+    ws = Workspace(ctx.config.povray.parent_dir)
+    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
+    source_files = collect_source_files(git_graph)
+    # pprint(git_graph.commit_graph.in_edges(nbunch=source_files))
+    file_commits = OrderedDict()
+    for f in source_files:
+        file_commits[f] = git_graph.collect_commits(f)
+    write_files_to_scitools_input_file(
+        source_files, ws.analysis_dir_path / 'scitools-src.txt',
+        ws.git_repo_path)
+    scitools_udb = understand.open(str(ws.scitools_udb_path))
+    for file_entity in scitools_udb.ents('file'):
+        metric_names = file_entity.metrics()
+        if len(metric_names):
+            print(file_entity.longname())
+            pprint(file_entity.metric(metric_names))
+
+
+def main():
+    program = Program(namespace=Collection.from_module(sys.modules[__name__]),
+                      version='0.1.0')
+    program.run()
+
+
 if __name__ == '__main__':
     main()
+

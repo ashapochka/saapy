@@ -1,8 +1,8 @@
-from .connectors import SonarClient
+from .issue import SonarClient
 from .graphdb import Neo4jClient
 from .vcs import GitClient
-from .connectors import ScitoolsClient
-from .connectors import JiraClient
+from .issue import ScitoolsClient
+from .issue import JiraClient
 
 
 class ResourceFactory:
