@@ -66,3 +66,8 @@ target/
 
 understand/
 samples/build-word/
+/data/saapy-graph.json
+data/saapy-graph.json
+data/test.shelve
+docs/understand-api/understand_files/
+tests/data/test-similarity_graph.shelve
