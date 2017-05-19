@@ -1,7 +1,7 @@
-from .issue import SonarClient
+from .codetools import SonarClient
 from .graphdb import Neo4jClient
 from .vcs import GitClient
-from .issue import ScitoolsClient
+from .codetools import ScitoolsClient
 from .issue import JiraClient
 
 

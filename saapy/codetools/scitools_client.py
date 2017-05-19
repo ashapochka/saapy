@@ -1,4 +1,5 @@
 # coding=utf-8
+import contextlib
 import logging
 from tempfile import NamedTemporaryFile
 from pathlib import Path
@@ -8,6 +9,7 @@ import subprocess
 import shutil
 
 import networkx as nx
+from sortedcontainers import SortedSet
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +23,20 @@ class ScitoolsProject:
     metrics: dict
     root_path: Path
     root_arch_ids = None
+    entity_kinds: SortedSet
+    ref_kinds: SortedSet
 
     def __init__(self, root_path):
         self.code_graph = nx.MultiDiGraph()
         self.metrics = {}
         self.root_path = Path(root_path)
         self.root_arch_ids = []
-
-    def set_project_metrics(self, project_db):
-        metric_names = project_db.metrics()
-        self.metrics = project_db.metric(metric_names)
+        self.entity_kinds = SortedSet()
+        self.ref_kinds = SortedSet()
 
     def populate(self, project_db):
+        metric_names = project_db.metrics()
+        self.metrics = project_db.metric(metric_names)
         self.root_arch_ids = self.add_architectures(project_db.root_archs())
         for entity in project_db.ents():
             self.add_entity(entity)
@@ -64,6 +68,7 @@ class ScitoolsProject:
         e = self.entity_to_dict(ent)
         node_id = self.get_node_id(ent_attrs=e)
         self.code_graph.add_node(node_id, attr_dict=e)
+        self.entity_kinds.add(e['kind_longname'])
         parent = ent.parent()
         if parent:
             parent_id = self.get_node_id(ent=parent)
@@ -74,6 +79,7 @@ class ScitoolsProject:
             self.code_graph.add_edge(node_id,
                                      self.get_node_id(ref.ent()),
                                      attr_dict=r)
+            self.ref_kinds.add(r['kind_longname'])
         return node_id
 
     def ref_to_dict(self, ref):
@@ -100,8 +106,11 @@ class ScitoolsProject:
         elif ent:
             node_id = ent.uniquename()
         elif ent_attrs and ent_attrs['kindname'] == 'file':
-            node_id = str(Path(ent_attrs['longname']).relative_to(
-                self.root_path))
+            try:
+                node_id = str(Path(ent_attrs['longname']).relative_to(
+                    self.root_path))
+            except ValueError:
+                node_id = ent_attrs['longname']
         elif ent_attrs:
             node_id = ent_attrs['uniquename']
         else:
@@ -118,7 +127,7 @@ class ScitoolsProject:
         e['ent_id'] = ent.id()
         e['parsetime'] = ent.parsetime()
         e['uniquename'] = ent.uniquename()
-        e['longname'] = ent.longname(preserve_named_root=False)
+        e['longname'] = ent.longname()
         e['name'] = ent.name()
         e['relname'] = ent.relname()
         e['simplename'] = ent.simplename()
@@ -175,7 +184,7 @@ class ScitoolsClient:
         UnderstandError
         :return: open database or None
         """
-        self.close_udb()
+        self.close_project()
         try:
             self.project_db = self.understand.open(str(self.project_path))
         except self.understand.UnderstandError:
@@ -201,8 +210,13 @@ class ScitoolsClient:
 
     def build_project(self, root_path):
         project = ScitoolsProject(root_path)
-        project.set_project_metrics(self.project_db)
+        project.populate(self.project_db)
         return project
+
+    def remove_project(self):
+        self.close_project()
+        with contextlib.suppress(FileNotFoundError):
+            self.project_path.unlink()
 
 
 def inspect_refs(entity):

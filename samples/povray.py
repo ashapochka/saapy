@@ -5,126 +5,245 @@ from collections import OrderedDict
 from pathlib import Path
 from pprint import pprint
 
-import networkx as nx
-import understand
-
 import sys
+from typing import Iterable
+
 from invoke import Program, task, Collection
+from profilehooks import timecall, profile
+import pandas as pd
 
-from analysis import ActorSimilarityGraph
-from saapy.analysis import ActorParser, csv_to_list
+from saapy.analysis import (ActorParser, csv_to_list, ActorSimilarityGraph)
 from saapy.vcs import GitClient
+from saapy.codetools import ScitoolsClient, ScitoolsProject
 
 
-class Workspace:
+class Povray:
     root_path: Path
     git_repo_path: Path
     analysis_dir_path: Path
     shelve_db_path: Path
     scitools_udb_path: Path
+    git_graph = None
+    similarity_graph = None
+    scitools_project = None
+    scitools_client = None
 
     def __init__(self, root_dir):
         self.root_path = Path(root_dir).resolve()
         self.git_repo_path = self.root_path / 'povray'
         self.analysis_dir_path = self.root_path / 'povray-analysis'
         self.shelve_db_path = self.analysis_dir_path / 'povray.shelve'
-        self.scitools_udb_path = self.analysis_dir_path / 'povray-master1.udb'
+        self.scitools_udb_path = self.analysis_dir_path / 'povray-master.udb'
+        self.scitools_client = ScitoolsClient(self.scitools_udb_path)
 
-
-def collect_source_files(git_graph):
-    master_commit = git_graph.commit_node(ref_name='origin/master')['hexsha']
-    return git_graph.collect_files(
-        master_commit,
-        tree_node='source',
-        predicate=lambda f: f.endswith(('.cpp', '.h')))
-
-
-def write_files_to_scitools_input_file(files, output_path, root_dir):
-    with output_path.open('w') as out:
-        for f in files:
-            print(root_dir / f, file=out)
-
-
-def build_similarity_graph(git_graph):
-    actor_parser = ActorParser()
-    role_names = csv_to_list(Path('../data/names.csv'))
-    actor_parser.add_role_names(role_names)
-    actors = [actor_parser.parse_actor(
-        git_graph.commit_graph.node[actor_id]['name'],
-        git_graph.commit_graph.node[actor_id]['email'])
-        for actor_id in git_graph.actors]
-    similarity_graph = ActorSimilarityGraph()
-    for actor in actors:
-        similarity_graph.add_actor(actor)
-    return similarity_graph
-
-
-def build_git_graph(git_repo_path, shelve_db_path):
-    with shelve.open(str(shelve_db_path)) as db:
-        if 'git_graph' in db:
-            git_graph = db['git_graph']
-        else:
-            git_client = GitClient(git_repo_path)
+    @timecall
+    def build_git_graph(self):
+        with shelve.open(str(self.shelve_db_path)) as db:
+            git_client = GitClient(self.git_repo_path)
             git_graph = git_client.build_commit_graph()
             git_client.add_commit_tree(git_graph, ref_name='origin/master')
             db['git_graph'] = git_graph
-    return git_graph
+        self.git_graph = git_graph
 
+    @timecall
+    def load_git_graph(self):
+        with shelve.open(str(self.shelve_db_path)) as db:
+            if 'git_graph' in db:
+                self.git_graph = db['git_graph']
+            else:
+                self.git_graph = None
+        return self.git_graph
 
-def print_similarity_groups(similarity_graph):
-    similar_groups = similarity_graph.group_similar_actors()
-    for i, group in enumerate(similar_groups):
-        if len(group) < 2:
-            continue
-        print('=== group', i, '===')
-        for actor1_id, actor2_id, data \
-                in similarity_graph.actor_graph.edges_iter(
-            nbunch=group, data=True):
-            print(actor1_id, '->', actor2_id, data)
+    def collect_source_files(self):
+        master_commit = self.git_graph.commit_node(
+            ref_name='origin/master')['hexsha']
+        return self.git_graph.collect_files(
+            master_commit,
+            tree_node='source',
+            predicate=lambda f: f.endswith(('.cpp', '.h')))
 
+    def file_commit_frame(self, files: Iterable, file_column_prefix='f') -> pd.DataFrame:
+        columns = OrderedDict()
+        commit_stamps = {}
+        stamped_commits = {}
+        columns['commit'] = stamped_commits
+        for column_order, file_path in enumerate(files):
+            file_commits = self.git_graph.collect_commits(file_path)
+            stamped_edits = {}
+            column_name = '{}{}'.format(file_column_prefix, column_order)
+            columns[column_name] = stamped_edits
+            for commit in file_commits:
+                if commit.hexsha in commit_stamps:
+                    stamp = commit_stamps[commit.hexsha]
+                else:
+                    stamp = pd.Timestamp(commit.when).astimezone(None)
+                    while stamp in stamped_commits:
+                        stamp = stamp + pd.DateOffset(seconds=0.01)
+                    stamped_commits[stamp] = commit.hexsha
+                    commit_stamps[commit.hexsha] = stamp
+                stamped_edits[stamp] = commit.lines
+        frame = pd.DataFrame.from_dict(columns).fillna(0)
+        return frame
+
+    @timecall
+    def build_similarity_graph(self):
+        actor_parser = ActorParser()
+        role_names = csv_to_list(Path('../data/names.csv'))
+        actor_parser.add_role_names(role_names)
+        actors = [actor_parser.parse_actor(
+            self.git_graph.commit_graph.node[actor_id]['name'],
+            self.git_graph.commit_graph.node[actor_id]['email'])
+            for actor_id in self.git_graph.actors]
+        similarity_graph = ActorSimilarityGraph()
+        for actor in actors:
+            similarity_graph.add_actor(actor)
+        self.similarity_graph = similarity_graph
+
+    @timecall
+    def build_understand_project(self):
+        if not self.scitools_client.project_exists():
+            self.build_git_graph()
+            source_files = self.collect_source_files()
+            self.scitools_client.create_project()
+            self.scitools_client.add_files_to_project(
+                self.git_repo_path / f for f in source_files)
+            self.scitools_client.analyze_project()
+
+    @timecall
+    def build_code_graph(self):
+        if not self.scitools_client.project_exists():
+            print('understand project does not exist, '
+                  'first run "$ povray understand --build"')
+        else:
+            with shelve.open(str(self.shelve_db_path)) as db:
+                self.scitools_client.open_project()
+                self.scitools_project = self.scitools_client.build_project(
+                    self.git_repo_path)
+                self.scitools_client.close_project()
+                db['code_graph'] = self.scitools_project
+                print('loaded scitools project of size',
+                      len(self.scitools_project.code_graph))
+                print('entity kinds:', self.scitools_project.entity_kinds)
+                print('ref kinds:', self.scitools_project.entity_kinds)
+
+    @timecall
+    def load_code_graph(self) -> ScitoolsProject:
+        with shelve.open(str(self.shelve_db_path)) as db:
+            if 'code_graph' in db:
+                self.scitools_project = db['code_graph']
+            else:
+                self.scitools_project = None
+        return self.scitools_project
+
+    @timecall
+    def entity_class_metrics(self):
+        project = self.load_code_graph()
+        entities = []
+        entity_comments = []
+        refs = []
+        for node, data in project.code_graph.nodes_iter(data=True):
+            if ('node_type' not in data
+                or 'entity' != data['node_type']
+                or 'kindname' not in data
+                or 'class' not in data['kindname']
+                or 'unknown' in data['kindname']
+                or 'CountLineCode' not in data['metrics']
+                or not data['metrics']['CountLineCode']):
+                continue
+            entity = {'name': data['name'],
+                      'longname': data['longname'],
+                      'kindname': data['kindname']}
+            entity.update(data['metrics'])
+            entities.append(entity)
+            entity_comments.append({'name': data['longname'],
+                                    'comments': data['comments']})
+            entity_defs = []
+            for origin, dest, ref_data in project.code_graph.out_edges_iter(
+                    nbunch=node, data=True):
+                dest_data = project.code_graph.node[dest]
+                ref = {'origin': data['longname'],
+                       'destination': dest_data['longname']
+                       if 'longname' in dest_data else '',
+                       'name': dest_data['name']
+                       if 'name' in dest_data else '',
+                       'dest_kind': dest_data['kindname']
+                       if 'kindname' in dest_data else '',
+                       'ref': ref_data['name']
+                       if 'name' in ref_data else '',
+                       'ref_kind': ref_data['kind_longname']
+                       if 'kind_longname' in ref_data else ''}
+                refs.append(ref)
+                if 'c define' == ref['ref_kind']:
+                    entity_defs.append(ref['name'])
+            entity['defs'] = ' '.join(entity_defs)
+
+        entity_frame = pd.DataFrame(data=entities)
+        entity_comment_frame = pd.DataFrame(data=entity_comments)
+        ref_frame = pd.DataFrame(data=refs)
+        entity_frame.to_csv(
+            self.analysis_dir_path / 'entities.csv', index=False)
+        entity_comment_frame.to_csv(
+            self.analysis_dir_path / 'entity-comments.csv', index=False)
+        ref_frame.to_csv(
+            self.analysis_dir_path / 'entity-refs.csv', index=False)
 
 
 @task
 def cleanup(ctx):
-    ws = Workspace(ctx.config.povray.parent_dir)
+    pv = Povray(ctx.config.povray.parent_dir)
     with contextlib.suppress(FileNotFoundError):
-        ws.shelve_db_path.unlink()
-        ws.scitools_udb_path.unlink()
+        pv.shelve_db_path.unlink()
+        pv.scitools_udb_path.unlink()
 
 
 @task
 def git_graph(ctx):
-    ws = Workspace(ctx.config.povray.parent_dir)
-    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
-    print(len(git_graph.commit_graph))
+    pv = Povray(ctx.config.povray.parent_dir)
+    pv.build_git_graph()
+    print('git graph built and saved with',
+          len(pv.git_graph.commit_graph), 'nodes')
 
 
 @task
 def sim_graph(ctx):
-    ws = Workspace(ctx.config.povray.parent_dir)
-    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
-    similarity_graph = build_similarity_graph(git_graph)
-    print_similarity_groups(similarity_graph)
+    pv = Povray(ctx.config.povray.parent_dir)
+    if not pv.load_git_graph():
+        print('git graph does not exist,'
+              'first run "$ povray git_graph" to build it')
+        return 1
+    pv.build_similarity_graph()
+    pv.similarity_graph.print_similarity_groups()
 
 
 @task
 def understand(ctx):
-    ws = Workspace(ctx.config.povray.parent_dir)
-    git_graph = build_git_graph(ws.git_repo_path, ws.shelve_db_path)
-    source_files = collect_source_files(git_graph)
-    # pprint(git_graph.commit_graph.in_edges(nbunch=source_files))
-    file_commits = OrderedDict()
-    for f in source_files:
-        file_commits[f] = git_graph.collect_commits(f)
-    write_files_to_scitools_input_file(
-        source_files, ws.analysis_dir_path / 'scitools-src.txt',
-        ws.git_repo_path)
-    scitools_udb = understand.open(str(ws.scitools_udb_path))
-    for file_entity in scitools_udb.ents('file'):
-        metric_names = file_entity.metrics()
-        if len(metric_names):
-            print(file_entity.longname())
-            pprint(file_entity.metric(metric_names))
+    pv = Povray(ctx.config.povray.parent_dir)
+    pv.build_understand_project()
+
+
+@task
+def code_graph(ctx, build=False, load=False):
+    pv = Povray(ctx.config.povray.parent_dir)
+    if build:
+        pv.build_code_graph()
+    elif load:
+        pv.load_code_graph()
+
+
+@task
+def metrics(ctx):
+    pv = Povray(ctx.config.povray.parent_dir)
+    pv.entity_class_metrics()
+
+
+@task
+def history(ctx):
+    pv = Povray(ctx.config.povray.parent_dir)
+    pv.load_git_graph()
+    source_files = pv.collect_source_files()
+    df = pv.file_commit_frame(source_files)
+    print(df.describe())
+
 
 
 def main():
@@ -135,4 +254,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

@@ -227,3 +227,14 @@ class ActorSimilarityGraph:
         similar_actor_groups = [list(g) for g in
                                 nx.connected_components(self.actor_graph)]
         return similar_actor_groups
+
+    def print_similarity_groups(self):
+        similar_groups = self.group_similar_actors()
+        for i, group in enumerate(similar_groups):
+            if len(group) < 2:
+                continue
+            print('=== group', i, '===')
+            for actor1_id, actor2_id, data \
+                    in self.actor_graph.edges_iter(
+                nbunch=group, data=True):
+                print(actor1_id, '->', actor2_id, data)

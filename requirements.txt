@@ -54,6 +54,9 @@ github3.py
 recordclass
 textacy
 pyenchant
+profilehooks
+sortedcontainers
+pyLDAvis
 
 # database drivers
 neo4j-driver #neo4j official driver

@@ -1,9 +1,17 @@
 # coding=utf-8
 import functools
 import re
-from typing import List, Dict, Any, Optional
+from collections import OrderedDict
+from functools import partial
+from typing import List, Dict, Any, Optional, Iterable
 import enchant
+import logging
 from fuzzywuzzy import fuzz
+from recordclass import recordclass
+from sortedcontainers import SortedDict, SortedSet
+import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 def fuzzy_distance(word, words):
@@ -23,6 +31,46 @@ def flatten_parsed_lexeme(parsed_lexeme: List,
             else:
                 words.append(segment_map[2])
     return words
+
+
+flatten_lexeme_sans_miss = partial(flatten_parsed_lexeme, skip_miss=True)
+
+
+def flatten_lexeme_series(
+        parsed_lexemes: pd.Series, skip_miss=False) -> pd.Series:
+    flatten = partial(flatten_parsed_lexeme, skip_miss=skip_miss)
+    return parsed_lexemes.map(
+        lambda l: ' '.join(sum(list(map(flatten, l)), [])))
+
+
+def collect_misses(parsed_lexemes: Iterable) -> Dict:
+    misses = SortedDict()
+    for lexeme in parsed_lexemes:
+        for sublexeme in lexeme:
+            for segment in sublexeme:
+                for sm in segment[1]:
+                    if sm.seg_type == 'miss':
+                        misses.setdefault(
+                            sm.segment.lower(), default=SortedSet()).add(sm.lexeme)
+    return misses
+
+
+def misses_to_frame(parsed_lexemes: Iterable,
+                    terms: Dict[str, str]=None) -> pd.DataFrame:
+    if not terms:
+        terms = {}
+    miss_dict = collect_misses(parsed_lexemes)
+    misses = []
+    for miss in miss_dict:
+        low_miss = miss.lower()
+        miss_record = OrderedDict()
+        miss_record['miss'] = low_miss
+        miss_record['term'] = terms.get(low_miss, low_miss)
+        miss_record['lexemes'] = ' '.join(miss_dict[miss])
+        misses.append(miss_record)
+    miss_frame = pd.DataFrame.from_records(
+        misses, index='miss', columns=['miss', 'term', 'lexemes'])
+    return miss_frame
 
 
 space_camel_case = functools.partial(re.compile(
@@ -64,7 +112,7 @@ drop_digits = functools.partial(re.compile(r'\d').sub, r'')
 split_dot = functools.partial(re.compile(r'\.').split)
 split_double_colon = functools.partial(re.compile(r'::').split)
 split_slash = functools.partial(re.compile(r'/').split)
-
+strip_noise = functools.partial(re.compile(r'(^[\W|_]+)|([\W|_]+$)').sub, r'')
 
 def split_file_path(s: str) -> Dict[str, Optional[Any]]:
     path_parts = split_slash(s)
@@ -87,6 +135,11 @@ def like_nickname(s: str) -> bool:
     return email_nickname_pattern.fullmatch(s) is not None
 
 
+SegmentMap = recordclass('SegmentMap',
+                         ['seg_type', 'segment', 'segment_map',
+                          'lexeme', 'distances'])
+
+
 class LexemeParser:
     terms = None
     word_dictionary = enchant.Dict("en_US")
@@ -98,12 +151,33 @@ class LexemeParser:
         self.terms.update(terms)
 
     def parse_lexeme(self, lexeme: str) -> List:
-        lexeme_parts = split_lexeme(lexeme)
-        parsed_lexeme = []
-        for lexeme_part in lexeme_parts:
-            segments = self.segment_into_words(lexeme_part)
-            parsed_lexeme.append((lexeme_part, segments))
-        return parsed_lexeme
+        try:
+            clean_lexeme = strip_noise(lexeme)
+            low_lexeme = clean_lexeme.lower()
+            if low_lexeme in self.terms:
+                lexeme_parts = [clean_lexeme]
+            else:
+                lexeme_parts = split_lexeme(lexeme)
+            parsed_lexeme = []
+            for lexeme_part in lexeme_parts:
+                segments = self.segment_into_words(lexeme, lexeme_part)
+                parsed_lexeme.append((lexeme_part, segments))
+            return parsed_lexeme
+        except Exception:
+            logger.exception('failed to parse lexeme {}'.format(lexeme))
+            return [(lexeme, [SegmentMap('miss', lexeme, None, lexeme, [0])])]
+
+    def parse_lexeme_row(self, row: Iterable) -> List:
+        return list(map(self.parse_lexeme,
+                        sum((value.split() for value in row), [])))
+
+    def parse_lexeme_series(self, lexemes: pd.Series) -> pd.Series:
+        return lexemes.map(
+            lambda lexeme: list(map(self.parse_lexeme, lexeme)))
+
+    def parse_lexeme_frame(self, lexeme_frame: pd.DataFrame) -> pd.Series:
+        return lexeme_frame.apply(
+            self.parse_lexeme_row, axis=1, raw=True, reduce=True)
 
     def split_into_words(self, lexeme: str,
                          camel_split: bool = True,
@@ -157,7 +231,8 @@ class LexemeParser:
         parts.append(lexeme[token_start: len(lexeme)])
         return parts
 
-    def segment_into_words(self, lexeme: str, exclude=None,
+    def segment_into_words(self, context_lexeme: str,
+                           lexeme: str, exclude=None,
                            term_distance:int=100,
                            dict_distance:int=100):
         """
@@ -184,7 +259,7 @@ class LexemeParser:
                 segment = working_chars[:i]
                 if segment in exclude:
                     continue
-                segment_map = self.map_segment(segment,
+                segment_map = self.map_segment(segment, context_lexeme,
                                                term_distance=term_distance,
                                                dict_distance=dict_distance)
                 if segment_map[2] is not None:
@@ -194,36 +269,36 @@ class LexemeParser:
             else:  # no matching segments were found
                 if len(segments):
                     exclude.add(segments[-1][1])
-                    return self.segment_into_words(lexeme, exclude=exclude,
+                    return self.segment_into_words(context_lexeme, lexeme,
+                                                   exclude=exclude,
                                                    term_distance=term_distance,
                                                    dict_distance=dict_distance)
                 # let the user know a word was missing from the dictionary,
                 # but keep the word
-                return [('miss', lexeme, None)]
+                return [SegmentMap('miss', lexeme, None, context_lexeme, [0])]
         return segments
 
     def map_segment(self, segment: str,
+                    lexeme: str,
                     term_distance:int=100,
                     dict_distance:int=100):
         low_segment = segment.lower()
         low_digitfree_segment = drop_digits(low_segment)
-        segment_map = None
-        if low_segment in self.terms:
-            segment_map = ('term', segment,
-                           self.terms[low_segment] or low_segment)
-        elif low_digitfree_segment in self.terms:
-            segment_map = ('term', segment,
-                           self.terms[low_digitfree_segment]
-                           or low_digitfree_segment)
-        elif len(self.terms) and term_distance < 100:
+        segment_map = self.map_segment_to_term(segment, low_segment, lexeme)
+        if not segment_map and low_digitfree_segment:
+            segment_map = self.map_segment_to_term(
+                segment, low_digitfree_segment, lexeme)
+        if not segment_map and len(self.terms) and term_distance < 100:
             distances = fuzzy_distance(low_segment, self.terms.keys())
             term_key = distances[0][0]
             if distances[0][1] >= term_distance:
-                segment_map = ('term', segment,
-                               self.terms[term_key] or term_key)
-        if not segment_map:
+                segment_map = SegmentMap(
+                    'term', segment, self.terms[term_key] or term_key,
+                     lexeme, distances[0][1])
+        if not segment_map and low_digitfree_segment:
             if self.word_dictionary.check(low_digitfree_segment):
-                segment_map = ('dict', segment, low_digitfree_segment)
+                segment_map = SegmentMap(
+                    'dict', segment, low_digitfree_segment, lexeme, [100])
             elif dict_distance < 100:
                 suggest = self.word_dictionary.suggest(low_digitfree_segment)
                 distances = fuzzy_distance(
@@ -232,6 +307,18 @@ class LexemeParser:
                 distance = distances[0][1] if len(distances) else 0
                 if distance >= dict_distance:
                     correction = distances[0][0]
-                    segment_map = ('corr', segment, correction, distances)
-            segment_map = segment_map or ('miss', segment, None)
+                    segment_map = SegmentMap(
+                        'corr', segment, correction, lexeme, distances)
+        segment_map = segment_map or SegmentMap(
+            'miss', segment, None, lexeme, [0])
         return segment_map
+
+    def map_segment_to_term(self, segment: str,
+                            modified_segment: str, lexeme: str):
+        if modified_segment in self.terms:
+            segment_map = SegmentMap(
+                'term', segment,
+                self.terms[modified_segment] or modified_segment, lexeme, [100])
+            return segment_map
+        else:
+            return None

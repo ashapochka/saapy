@@ -1,21 +1,19 @@
-from invoke import task
-from saapy import SecretStore, dump_configuration, Workspace
-from saapy.issue import ScitoolsClient
-from saapy.graphdb import Neo4jClient
-from saapy.vcs import GitClient
-from saapy.etl import ScitoolsETL
-from saapy.vcs import GitETL
-from saapy.lang.tsql import print_tsql
-from timeit import default_timer as timer
-from datetime import timedelta, datetime
-import os
-import sys
-import yaml
-import getpass
+# coding=utf-8
 import logging
-import requests
-from concurrent.futures import ThreadPoolExecutor
-import pandas as pd
+import os
+from datetime import timedelta
+from timeit import default_timer as timer
+
+import yaml
+from invoke import task
+
+from .admin_tasks import connect_neo4j
+from saapy.codetools import ScitoolsClient
+from saapy.codetools import ScitoolsETL
+from saapy.lang.tsql import print_tsql
+from saapy.vcs import GitClient
+from saapy.vcs import GitETL
+
 # from saapy.etl import build_neo4j_query
 
 
@@ -27,34 +25,7 @@ logging.getLogger('neo4j.bolt').setLevel(logging.WARNING)
 
 
 @task
-def deps(ctx):
-    """
-    installs dependencies listed in requirements.txt with pip
-    :return: None
-    """
-    ctx.run("pip install -U -r requirements.txt")
-
-
-@task
-def test(ctx):
-    """
-    runs tests for the library
-    :return: None
-    """
-    ctx.run("py.test")
-
-
-@task
-def codecheck(ctx):
-    """
-    runs code quality checks using pep8 and other tools
-    :return: None
-    """
-    ctx.run("py.test --pep8 -m pep8")
-
-
-@task
-def jupyter(ctx):
+def notebook(ctx):
     """
     starts jupyter notebook server on the 8888++ port
     with its work directory in ./samples
@@ -62,6 +33,7 @@ def jupyter(ctx):
     :return: None
     """
     ctx.run("jupyter-notebook --notebook-dir=samples")
+
 
 @task
 def gen_antlr_tsql(ctx):
@@ -74,45 +46,6 @@ def gen_antlr_tsql(ctx):
     target_dir = "saapy/lang/tsql/autogen"
     grammar_dir = "antlr/grammars-v4/tsql/tsql.g4"
     ctx.run("antlr4 -Dlanguage=Python3 -o {0} {1}".format(target_dir, grammar_dir))
-
-# TODO: add tox configuration and link to travis-ci,
-# ref http://docs.python-guide.org/en/latest/scenarios/ci/#tox
-
-
-@task
-def encrypt_secrets(ctx, plain_store_yaml_path, key_yaml_path=None,
-                    store_yaml_path=None):
-    secret_store = SecretStore.load_from_yaml(key_yaml_path, plain_store_yaml_path,
-                                              encrypted=False)
-    secret_store.save_as_yaml(store_yaml_path)
-
-
-@task
-def gen_master_key(ctx, key_yaml_path):
-    SecretStore.add_master_key(key_yaml_path)
-
-
-@task
-def set_secret(ctx, secret, service=None, user=None, key_yaml_path=None,
-               store_yaml_path=None):
-    secret_store = SecretStore.load_from_yaml(key_yaml_path, store_yaml_path,
-                                              encrypted=True)
-    path = []
-    path = path + [service] if service else path
-    path = path + [user] if user else path
-    secret_store.set_secret(secret, *path)
-    secret_store.save_as_yaml(store_yaml_path)
-
-
-@task
-def set_ws_secret(ctx, conf_path=None, resource=None):
-    ws = Workspace(conf_path)
-    user_name = ws.get_resource_user(resource)
-    secret = getpass.getpass(
-        prompt="User {0} password for resource {1}: ".format(
-            user_name, resource))
-    ws.secret_store.set_secret(secret, resource, user_name)
-    ws.save_configuration()
 
 
 # noinspection PyUnusedLocal
@@ -140,12 +73,6 @@ def scitools_to_structs(udb_path):
     etl.transfer_to_struct_db(scitools_db)
     return scitools_db
 
-# noinspection PyUnusedLocal
-@task
-def neo4j_password(ctx, user='graphdb'):
-    password = getpass.getpass(prompt='Neo4j password for {0}: '.format(user))
-    ctx['neo4j_password'] = password
-
 
 # noinspection PyUnusedLocal
 @task
@@ -164,13 +91,6 @@ def import_scitools_yaml_to_neo4j(ctx, yaml_path, neo4j_url='bolt://localhost',
         scitools_db = yaml.load(input_stream)
     neo4j_client = connect_neo4j(ctx, neo4j_url, user)
     ScitoolsETL.import_to_neo4j(scitools_db, neo4j_client, labels=label_list)
-
-
-def connect_neo4j(ctx, neo4j_url, user):
-    neo4j_password(ctx, user=user)
-    neo4j_client = Neo4jClient(neo4j_url, user, ctx['neo4j_password'])
-    neo4j_client.connect()
-    return neo4j_client
 
 
 # noinspection PyUnusedLocal
@@ -212,32 +132,6 @@ def import_git_to_neo4j(ctx, git_path, neo4j_url='bolt://localhost',
 def print_tsql(ctx, *tsql_paths):
     for path in tsql_paths:
         print_tsql(path)
-
-
-@task
-def dump_conf(ctx, output=None, template_path=None):
-    if template_path:
-        with open(template_path, 'r') as template_yaml_file:
-            template = yaml.load(template_yaml_file)
-    else:
-        template = None
-    if output:
-        with open(output, 'w') as yaml_file:
-            dump_configuration(yaml_file, template=template)
-    else:
-        dump_configuration(sys.stdout, template=template)
-
-
-@task
-def tpl(ctx):
-    from string import Template
-    class Tpl(Template):
-        idpattern = r'[_a-z][\._a-z0-9]*'
-
-    t = Tpl('${workspace.work_directory}/conf/secret.yml')
-    s = t.safe_substitute(
-        {'workspace.work_directory': '/Users/ashapoch/Dropbox/_projects/saapy'})
-    print(s)
 
 
 # @task

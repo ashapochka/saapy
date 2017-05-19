@@ -22,7 +22,7 @@ GitHistory = namedtuple('GitHistory',
                         ['GitCommit', 'GitFileDiffStat', 'GitRef'])
 
 
-FileCommit = recordclass('FileCommit', ['commit', 'lines', 'when'])
+FileCommit = recordclass('FileCommit', ['hexsha', 'lines', 'when'])
 
 
 class GitGraph:
@@ -46,7 +46,8 @@ class GitGraph:
             return next(filter(eq, kwargs.keys()), None) is None
         return filter(predicate, node_labels)
 
-    def commit_node(self, hexsha=None, ref_name=None, tag_name=None):
+    def commit_node(self, hexsha: str=None,
+                    ref_name: str=None, tag_name: str=None):
         if hexsha:
             commit_hexsha = hexsha
         elif ref_name:
@@ -159,17 +160,17 @@ class GitGraph:
                                  edge_type='tree')
         return tree_node_id
 
-    def collect_commits(self, file_node):
+    def collect_commits(self, file_node, skip_merge=True):
         commits = []
         for predecessor in self.commit_graph.predecessors(file_node):
             pred_node = self.commit_graph.node[predecessor]
             predecessor_type = pred_node['node_type']
             if predecessor_type == 'commit':
-                if pred_node['parent_count'] > 1:
+                if skip_merge and pred_node['parent_count'] > 1:
                     pass
                 else:
                     commits.append(FileCommit(
-                        commit=predecessor,
+                        hexsha=predecessor,
                         lines=self.commit_graph[predecessor][file_node]['lines'],
                         when=pred_node['authored_datetime']))
             elif predecessor_type == 'file':
