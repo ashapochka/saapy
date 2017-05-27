@@ -140,8 +140,14 @@ class ScitoolsProject:
         e['library'] = ent.library()
         metric_names = ent.metrics()
         e['metrics'] = ent.metric(metric_names)
-        e['contents'] = ent.contents()
-        e['comments'] = ent.comments()
+        try:
+            e['contents'] = ent.contents()
+        except UnicodeDecodeError:
+            e['contents'] = ''
+        try:
+            e['comments'] = ent.comments()
+        except UnicodeDecodeError:
+            e['comments'] = ''
         e['node_type'] = 'entity'
         # e['ib'] = ent.ib()
         # ent.depends()
@@ -175,8 +181,11 @@ class ScitoolsClient:
     def project_exists(self):
         return self.project_path.exists() and self.project_path.is_file()
 
-    def create_project(self):
-        subprocess.run(['und', 'create', str(self.project_path)], check=True)
+    def create_project(self, *languages):
+        if not languages:
+            languages = ['c++']
+        subprocess.run(['und', 'create', '-languages', *languages,
+                        str(self.project_path)], check=True)
 
     def open_project(self):
         """

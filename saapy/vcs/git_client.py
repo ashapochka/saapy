@@ -9,18 +9,18 @@ import logging
 import re
 
 import time
-from collections import namedtuple
+from collections import OrderedDict
+from typing import Iterable
 
 import networkx as nx
 from git import Repo, Commit, Reference, TagReference, Tree
 from recordclass import recordclass
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
-
-GitHistory = namedtuple('GitHistory',
-                        ['GitCommit', 'GitFileDiffStat', 'GitRef'])
-
+GitHistory = recordclass('GitHistory',
+                         ['GitCommit', 'GitFileDiffStat', 'GitRef'])
 
 FileCommit = recordclass('FileCommit', ['hexsha', 'lines', 'when'])
 
@@ -42,12 +42,15 @@ class GitGraph:
     def filter_by_attr(self, node_labels, **kwargs):
         def predicate(hexsha):
             n = self.commit_node(hexsha=hexsha)
-            eq = lambda key: n[key] != kwargs[key]
+
+            def eq(key): return n[key] != kwargs[key]
+
             return next(filter(eq, kwargs.keys()), None) is None
+
         return filter(predicate, node_labels)
 
-    def commit_node(self, hexsha: str=None,
-                    ref_name: str=None, tag_name: str=None):
+    def commit_node(self, hexsha: str = None,
+                    ref_name: str = None, tag_name: str = None):
         if hexsha:
             commit_hexsha = hexsha
         elif ref_name:
@@ -56,6 +59,9 @@ class GitGraph:
         elif tag_name:
             commit_hexsha = next(self.filter_by_attr(self.tag_commits,
                                                      tag_name=tag_name), None)
+        else:
+            commit_hexsha = None
+
         if commit_hexsha:
             return self.commit_graph.node[commit_hexsha]
         else:
@@ -171,7 +177,8 @@ class GitGraph:
                 else:
                     commits.append(FileCommit(
                         hexsha=predecessor,
-                        lines=self.commit_graph[predecessor][file_node]['lines'],
+                        lines=self.commit_graph[predecessor][file_node][
+                            'lines'],
                         when=pred_node['authored_datetime']))
             elif predecessor_type == 'file':
                 commits.extend(self.collect_commits(predecessor))
@@ -186,6 +193,30 @@ class GitGraph:
                  if (commit_tree.node[edge[1]]['node_type'] == 'file'
                      and predicate(edge[1]))]
         return files
+
+    def file_commit_frame(self, files: Iterable,
+                          file_column_prefix='f') -> pd.DataFrame:
+        columns = OrderedDict()
+        commit_stamps = {}
+        stamped_commits = {}
+        columns['commit'] = stamped_commits
+        for column_order, file_path in enumerate(files):
+            file_commits = self.collect_commits(file_path)
+            stamped_edits = {}
+            column_name = '{}{}'.format(file_column_prefix, column_order)
+            columns[column_name] = stamped_edits
+            for commit in file_commits:
+                if commit.hexsha in commit_stamps:
+                    stamp = commit_stamps[commit.hexsha]
+                else:
+                    stamp = pd.Timestamp(commit.when).astimezone(None)
+                    while stamp in stamped_commits:
+                        stamp = stamp + pd.DateOffset(seconds=0.01)
+                    stamped_commits[stamp] = commit.hexsha
+                    commit_stamps[commit.hexsha] = stamp
+                stamped_edits[stamp] = commit.lines
+        frame = pd.DataFrame.from_dict(columns).fillna(0)
+        return frame
 
 
 class GitClient:
@@ -242,12 +273,15 @@ class GitClient:
             commit = self.repository.commit(rev=revision)
         elif isinstance(revision, Commit):
             commit = revision
+        else:
+            commit = None
         return commit
 
     def build_commit_graph(self):
         graph = GitGraph()
         visited_commit_hexsha = set()
         refs = self.repository.refs
+        # noinspection PyTypeChecker
         for ref in refs:
             ref_name, ref_commit_hexsha = ref.name, ref.commit.hexsha
             logger.info('starting ref %s', ref_name)
@@ -282,9 +316,10 @@ class GitClient:
         file_stats = history.GitFileDiffStat = []
         visited_commit_hexsha = set()
         refs = self.repository.refs
+        # noinspection PyTypeChecker
         tips = history.GitRef = [dict(ref_name=ref.name,
-                                         commit_hexsha=ref.commit.hexsha)
-                                    for ref in refs]
+                                      commit_hexsha=ref.commit.hexsha)
+                                 for ref in refs]
         for tip in tips:
             ref_name, ref_commit_hexsha = tip['ref_name'], tip['commit_hexsha']
             logger.info('starting ref %s', ref_name)
@@ -304,7 +339,9 @@ class GitClient:
         logger.info('history export complete')
         return history
 
-    def import_to_neo4j(self, neo4j_client, labels=[]):
+    def import_to_neo4j(self, neo4j_client, labels=None):
+        if labels is None:
+            labels = []
         history = self.revision_history()
         nodeset_names_to_import = history.keys()
         for nodeset_name in nodeset_names_to_import:
@@ -359,7 +396,7 @@ def check_file_move(file_path):
         pre_part = m.group(1)
         change_part = m.group(2)
         post_part = m.group(3)
-    except:
+    except Exception:
         pre_part = ''
         change_part = file_path
         post_part = ''
@@ -370,7 +407,7 @@ def check_file_move(file_path):
         old_file_name = combine_path_parts(pre_part, old_part, post_part)
         new_file_name = combine_path_parts(pre_part, new_part, post_part)
         return old_file_name, new_file_name
-    except:
+    except Exception:
         return change_part, change_part
 
 

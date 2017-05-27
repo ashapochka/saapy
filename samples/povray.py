@@ -62,27 +62,9 @@ class Povray:
             tree_node='source',
             predicate=lambda f: f.endswith(('.cpp', '.h')))
 
-    def file_commit_frame(self, files: Iterable, file_column_prefix='f') -> pd.DataFrame:
-        columns = OrderedDict()
-        commit_stamps = {}
-        stamped_commits = {}
-        columns['commit'] = stamped_commits
-        for column_order, file_path in enumerate(files):
-            file_commits = self.git_graph.collect_commits(file_path)
-            stamped_edits = {}
-            column_name = '{}{}'.format(file_column_prefix, column_order)
-            columns[column_name] = stamped_edits
-            for commit in file_commits:
-                if commit.hexsha in commit_stamps:
-                    stamp = commit_stamps[commit.hexsha]
-                else:
-                    stamp = pd.Timestamp(commit.when).astimezone(None)
-                    while stamp in stamped_commits:
-                        stamp = stamp + pd.DateOffset(seconds=0.01)
-                    stamped_commits[stamp] = commit.hexsha
-                    commit_stamps[commit.hexsha] = stamp
-                stamped_edits[stamp] = commit.lines
-        frame = pd.DataFrame.from_dict(columns).fillna(0)
+    def source_commit_frame(self) -> pd.DataFrame:
+        source_files = self.collect_source_files()
+        frame = self.git_graph.file_commit_frame(source_files)
         return frame
 
     @timecall
@@ -240,9 +222,8 @@ def metrics(ctx):
 def history(ctx):
     pv = Povray(ctx.config.povray.parent_dir)
     pv.load_git_graph()
-    source_files = pv.collect_source_files()
-    df = pv.file_commit_frame(source_files)
-    print(df.describe())
+    df = pv.source_commit_frame()
+    print(df.corr(method='spearman'))
 
 
 
