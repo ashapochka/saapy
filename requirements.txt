@@ -7,8 +7,8 @@ appdirs # paths to standard directories
 layeredconfig # application configuration support
 pyyaml # yaml support
 profilehooks # time profiling of the functions
-# ujson # faster json
-# cryptography # better security
+ujson # faster json
+cryptography # better security
 
 # project sdlc toolset
 
