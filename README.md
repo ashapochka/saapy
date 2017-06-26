@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/ashapochka/saapy.svg?branch=master)](https://travis-ci.org/ashapochka/saapy)
+
 # SAApy - System Architecture Assessment Toolkit
 
 The assessment toolkit provides a set of tools implemented in python helping
