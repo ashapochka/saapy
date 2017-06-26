@@ -18,7 +18,8 @@ setup(
     author_email='ashapochka@gmail.com',
     url='https://github.com/ashapochka/saapy',
     license=saapy_license,
-    packages=find_packages(exclude=('tests', 'docs'))
+    packages=find_packages(include=('saapy', 'saapy.*')),
+    install_requires = ['toolz']
 )
 
 # TODO: enhance packaging and add to PYPI,
