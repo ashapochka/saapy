@@ -17,6 +17,7 @@ samples = [('John Smith', 'john.smith@example.com'),
            ('jervis', 'Jervis@example.com')]
 
 
+@skip_on_travisciorg
 def test_parse_email():
     parser = build_parser()
     print()
@@ -25,6 +26,7 @@ def test_parse_email():
         print(parsed_email)
 
 
+@skip_on_travisciorg
 def test_parse_actor():
     parser = build_parser()
     print()
@@ -40,6 +42,7 @@ def build_parser():
     return parser
 
 
+@skip_on_travisciorg
 def test_similarity_graph():
     parser = build_parser()
     actors = [parser.parse_actor(*sample) for sample in samples]
