@@ -6,7 +6,7 @@ from networkx.readwrite import json_graph
 
 from saapy.analysis import dump_pretty_json
 from saapy.vcs import GitClient
-from vcs.git_client import check_file_move
+from saapy.vcs import check_file_move
 
 repository_path = Path('..').resolve()
 sample_revision = '4254c8c'
