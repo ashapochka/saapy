@@ -240,6 +240,10 @@ class LexemeParser:
         Keeps longest possible words that account for all characters,
         and returns list of segmented words.
     
+        :param dict_distance: fuzzy distance to enchant dictionary words
+        :param term_distance: fuzzy distance to predefined terms
+        :param context_lexeme: entire string in scope of which lexeme is
+        segmented
         :param lexeme: (str) The character string to segment.
         :param exclude: (set) A set of string to exclude from consideration.
                         (These have been found previously to lead to dead ends.)

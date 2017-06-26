@@ -1,18 +1,21 @@
 # coding=utf-8
 from pathlib import Path
 
+import pytest
 from git import Commit
 from networkx.readwrite import json_graph
 
 from saapy.analysis import dump_pretty_json
 from saapy.vcs import GitClient
 from saapy.vcs import check_file_move
+from .test_utils import skip_on_travisciorg
 
 repository_path = Path('..').resolve()
 sample_revision = '4254c8c'
 graph_json_path = Path('../data/saapy-graph.json')
 
 
+@skip_on_travisciorg
 def test_to_commit():
     git_client = GitClient(repository_path)
     commit = git_client.to_commit(sample_revision)
@@ -20,6 +23,7 @@ def test_to_commit():
     assert commit.hexsha.startswith(sample_revision)
 
 
+@skip_on_travisciorg
 def test_build_commit_graph():
     git_client = GitClient(repository_path)
     graph = git_client.build_commit_graph()

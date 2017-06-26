@@ -24,7 +24,7 @@ def test_segment_lexeme():
     sample_lexemes = ['configclazz', 'configurationclazz', 'inventoryfacade',
                       'inventaryfacade', 'crudservise']
     for lexeme in sample_lexemes:
-        lexeme_words = parser.segment_into_words(lexeme)
+        lexeme_words = parser.segment_into_words(lexeme, lexeme)
         pprint(lexeme_words)
 
 

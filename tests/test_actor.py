@@ -4,6 +4,7 @@ from pathlib import Path
 from pprint import pprint
 
 from saapy.analysis import (ActorParser, csv_to_list, ActorSimilarityGraph)
+from .test_utils import skip_on_travisciorg
 
 names_csv_path = Path('../data/names.csv')
 
@@ -52,6 +53,7 @@ def test_similarity_graph():
     pprint(actor_groups)
 
 
+@skip_on_travisciorg
 def test_shelve_similarity_graph():
     parser = build_parser()
     actors = [parser.parse_actor(*sample) for sample in samples]
@@ -62,6 +64,7 @@ def test_shelve_similarity_graph():
         db['similarity_graph'] = graph
 
 
+@skip_on_travisciorg
 def test_unshelve_similarity_graph():
     with shelve.open('data/test-similarity_graph.shelve') as db:
         graph = db['similarity_graph']
