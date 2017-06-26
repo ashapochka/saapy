@@ -7,6 +7,7 @@ from timeit import default_timer as timer
 import yaml
 from invoke import task
 
+import saapy.analysis
 from .admin_tasks import connect_neo4j
 from saapy.codetools import ScitoolsClient
 from saapy.codetools import ScitoolsETL
@@ -173,4 +174,7 @@ def print_tsql(ctx, *tsql_paths):
     # print(df.pivot('commit_datetime', 'commit_author', 'commit_count'))
 
 
-
+@task
+def grep(ctx, file_pattern, search_pattern):
+    for result in saapy.analysis.regrep(file_pattern, search_pattern):
+        print(result)

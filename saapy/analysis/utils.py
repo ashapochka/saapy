@@ -1,14 +1,13 @@
 # coding=utf-8
 import csv
+import glob
 import json
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
 import pandas as pd
-
-
-
 
 
 def dicts_to_dataframe(records: List[dict]) -> pd.DataFrame:
@@ -73,3 +72,12 @@ def empty_dict(keys):
 def csv_to_list(file_path):
     with to_path(file_path).open(newline='') as f:
         return list(csv.reader(f, delimiter=','))
+
+
+def regrep(file_pattern, search_pattern, recursive=True):
+    for file_path in glob.iglob(file_pattern, recursive=recursive):
+        with open(file_path, 'r') as f:
+            for i, line in enumerate(f):
+                line = line[:-1]
+                if re.search(search_pattern, line):
+                    yield (file_path, i, line)
