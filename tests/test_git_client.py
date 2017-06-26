@@ -4,7 +4,7 @@ from pathlib import Path
 from git import Commit
 from networkx.readwrite import json_graph
 
-from analysis import dump_pretty_json
+from saapy.analysis import dump_pretty_json
 from saapy.vcs import GitClient
 from vcs.git_client import check_file_move
 

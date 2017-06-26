@@ -1,4 +1,4 @@
-from saapy.issue.neo4j import Neo4jClient
+from saapy.graphdb import Neo4jClient
 import pytest
 import uuid
 
@@ -12,6 +12,7 @@ def neo4j_client(request, workspace):
     return client
 
 
+@pytest.mark.skip(reason='no local neo4j installation assumed for this moment')
 def test_run_in_tx(neo4j_client):
     def batch_job():
         query = """
