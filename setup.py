@@ -41,6 +41,8 @@ deps = [
 
     # machine learning
     'scikit-learn',  # machine learning support
+    'keras', # API for deep learning implementations such as TensorFlow
+    'tensorflow', # deep learning library
 
     # text crunching
     'pyIsEmail',  # email validation
@@ -61,6 +63,7 @@ deps = [
     'matplotlib',  # graphing
     'seaborn',  # enhanced graphing on top of matplotlib
     'bokeh',  # better charts
+    'nxviz', # networkx graph vizualization based on matplotlib
     # xlwings # excel python scripting only win and osx
     # python-pptx # powerpoint support
     # pillow # graphics manipulation
