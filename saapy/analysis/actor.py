@@ -50,7 +50,8 @@ def combine_actors(actor_frame, connectivity_column):
     aggregator = {'name': 'first', 'email': 'first',
                   'author_commits': 'sum',
                   'committer_commits': 'sum'}
-    return actor_frame.groupby(connectivity_column).agg(aggregator)
+    return actor_frame.groupby(connectivity_column).agg(
+        aggregator).reset_index()
 
 
 def insert_actor_ids(commit_frame, actor_frame, drop_name_email=True):

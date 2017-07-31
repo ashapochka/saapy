@@ -94,7 +94,7 @@ class Toolbox:
         if persist_feather:
             if isinstance(persist_feather, (str, Path)):
                 frame_feather = str(persist_feather)
-            elif persist_feather:
+            else:
                 file_name = '{}.feather'.format(key)
                 frame_feather = str(self.default_data_directory / file_name)
         else:
@@ -102,7 +102,7 @@ class Toolbox:
         return frame_feather
 
     def save_frame(self, key, df=None, persist_feather=None):
-        if df:
+        if df is not None:
             self.data[key] = df
         frame_feather = self.to_frame_feather_path(key, persist_feather)
         if frame_feather:
