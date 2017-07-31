@@ -81,3 +81,60 @@ def regrep(file_pattern, search_pattern, recursive=True):
                 line = line[:-1]
                 if re.search(search_pattern, line):
                     yield (file_path, i, line)
+
+
+def attr_to_value(obj, attr_path, default_value=None, sep='.', cache=None):
+    attr_parts = attr_path.split(sep)
+    cur_obj = obj
+    attr_value = default_value
+    for i, attr in enumerate(attr_parts):
+        if cur_obj is None:
+            break
+        else:
+            try:
+                found_cached = False
+                if cache is not None:
+                    cur_path = sep.join(attr_parts[:i + 1])
+                    if cur_path in cache:
+                        attr_value = cache[cur_path]
+                        found_cached = True
+                if not found_cached:
+                    if isinstance(cur_obj, dict):
+                        attr_value = cur_obj[attr]
+                    else:
+                        attr_value = getattr(cur_obj, attr)
+                    if cache is not None:
+                        cache[cur_path] = attr_value
+            except (AttributeError, KeyError):
+                break
+            else:
+                cur_obj = attr_value
+    else:
+        return attr_value
+    return default_value
+
+
+def obj_to_dict(obj, attrs, default_value=None, sep='.',
+                cache_attrs=True):
+    attr_cache = {} if cache_attrs else None
+    return {attr: attr_to_value(obj, attr,
+                                default_value=default_value,
+                                sep=sep, cache=attr_cache)
+            for attr in attrs}
+
+
+def objs_to_dicts(objs, attrs, default_value=None, sep='.', cache_attrs=True):
+    """
+    Extracts specified attributes 'attrs' from iterable 'objs'
+    and returns them as dictionaries. Can traverse object trees splitting
+    attributes by 'sep'.
+    """
+    return map(lambda obj: obj_to_dict(obj, attrs,
+                                       default_value=default_value,
+                                       sep=sep,
+                                       cache_attrs=cache_attrs),
+               objs)
+
+
+def categorize(data):
+    return data.astype('category')

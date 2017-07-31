@@ -1,16 +1,17 @@
 # coding=utf-8
 from typing import List
-from toolz import pipe
-import pyisemail
-import pandas as pd
-from fuzzywuzzy import fuzz
-import networkx as nx
-from sklearn.preprocessing import MinMaxScaler
 
-from .actor import ActorParser
-from saapy.graphdb import Neo4jQueryFactory
+import networkx as nx
+import pandas as pd
+import pyisemail
+from fuzzywuzzy import fuzz
+from sklearn.preprocessing import MinMaxScaler
+from toolz import pipe
+
 from saapy.graphdb import Neo4jQueryAsyncInvoker
-from .utils import (dicts_to_dataframe, dataframe_to_dicts)
+from saapy.graphdb import Neo4jQueryFactory
+from saapy.util.utils import (dicts_to_dataframe)
+from .actor import ActorParser
 
 
 class GitAuthorQueryFactory(Neo4jQueryFactory):

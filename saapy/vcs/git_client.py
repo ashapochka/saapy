@@ -6,16 +6,16 @@ repository
 """
 import difflib
 import logging
-import re
-
 import time
 from collections import OrderedDict
 from typing import Iterable
 
 import networkx as nx
+import pandas as pd
 from git import Repo, Commit, Reference, TagReference, Tree
 from recordclass import recordclass
-import pandas as pd
+
+from .git_commit_utils import check_file_move
 
 logger = logging.getLogger(__name__)
 
@@ -287,7 +287,7 @@ class GitClient:
             logger.info('starting ref %s', ref_name)
             commit_count = 0
             graph.add_ref(ref)
-            for commit in self.repository.iter_commits(rev=ref_commit_hexsha):
+            for commit in self.repository.iter_comcomits(rev=ref_commit_hexsha):
                 commit_hexsha = commit.hexsha
                 if commit_hexsha in visited_commit_hexsha:
                     continue
@@ -390,32 +390,3 @@ class GitClient:
         print()
 
 
-def check_file_move(file_path):
-    m = re.match(r'(.*)(\{.*\s\=\>\s.*\})(.*)', file_path)
-    try:
-        pre_part = m.group(1)
-        change_part = m.group(2)
-        post_part = m.group(3)
-    except Exception:
-        pre_part = ''
-        change_part = file_path
-        post_part = ''
-    m = re.match(r'[\{]?(.*)\s\=\>\s([^\}]*)[\}]?', change_part)
-    try:
-        old_part = m.group(1)
-        new_part = m.group(2)
-        old_file_name = combine_path_parts(pre_part, old_part, post_part)
-        new_file_name = combine_path_parts(pre_part, new_part, post_part)
-        return old_file_name, new_file_name
-    except Exception:
-        return change_part, change_part
-
-
-def combine_path_parts(pre_part, inner_part, post_part):
-    if inner_part:
-        file_path = pre_part + inner_part + post_part
-    elif pre_part.endswith('/') and post_part.startswith('/'):
-        file_path = pre_part[:-1] + post_part
-    else:
-        file_path = pre_part + post_part
-    return file_path

@@ -34,6 +34,7 @@ deps = [
     'numexpr',  # fast numerical array computations
     'scipy',  # mathematics platform
     'pandas',  # tabular data crunching
+    'feather-format', # feather file format support for pandas data frames
     'sympy',  # symbolic math
     # statsmodels # statistical models
     # pymc # Bayesian estimation

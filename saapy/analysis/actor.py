@@ -3,12 +3,11 @@ from typing import List
 
 import networkx as nx
 import pyisemail
-from recordclass import recordclass
-from toolz import *
 from fuzzywuzzy import fuzz
+from recordclass import recordclass
 
-from .utils import empty_dict
-from .lexeme import LexemeParser, split_lexeme, cleanup_proper_name
+from saapy.util import empty_dict
+from .lexeme import cleanup_proper_name
 
 PARSED_EMAIL_FIELDS = ['email', 'valid', 'name', 'domain', 'parsed_name']
 

@@ -7,7 +7,7 @@ from networkx.readwrite import json_graph
 
 from saapy.analysis import dump_pretty_json
 from saapy.vcs import GitClient
-from saapy.vcs import check_file_move
+from vcs import check_file_move
 from .test_utils import skip_on_travisciorg
 
 repository_path = Path('..').resolve()

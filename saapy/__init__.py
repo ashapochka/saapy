@@ -6,5 +6,5 @@ from .resource_factory import (
     create_scitools,
     ResourceFactory
 )
-from .jupyter_support import configure_jupyter_environment
 from .secret_store import SecretStore
+import util
