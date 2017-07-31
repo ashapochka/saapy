@@ -1,12 +1,11 @@
 # coding=utf-8
 import shelve
-from pathlib import Path
 from pprint import pprint
 
-from saapy.analysis import (ActorParser, csv_to_list, ActorSimilarityGraph)
+from saapy.analysis import ActorParser, ActorSimilarityGraph
+from saapy.util import csv_to_list
 from .test_utils import skip_on_travisciorg
 
-names_csv_path = Path('../data/names.csv')
 
 samples = [('John Smith', 'john.smith@example.com'),
            ('', 'john.smith257@example.com'),
@@ -17,34 +16,31 @@ samples = [('John Smith', 'john.smith@example.com'),
            ('jervis', 'Jervis@example.com')]
 
 
-@skip_on_travisciorg
-def test_parse_email():
-    parser = build_parser()
+def test_parse_email(data_root):
+    parser = build_parser(data_root)
     print()
     for sample in samples:
         parsed_email = parser.parse_email(sample[1])
         print(parsed_email)
 
 
-@skip_on_travisciorg
-def test_parse_actor():
-    parser = build_parser()
+def test_parse_actor(data_root):
+    parser = build_parser(data_root)
     print()
     for sample in samples:
         actor = parser.parse_actor(*sample)
         print(actor.parsed_name, actor.parsed_email)
 
 
-def build_parser():
-    names = csv_to_list(names_csv_path)
+def build_parser(data_root):
+    names = csv_to_list(data_root / 'names.csv')
     parser = ActorParser()
     parser.add_role_names(names[1:])
     return parser
 
 
-@skip_on_travisciorg
-def test_similarity_graph():
-    parser = build_parser()
+def test_similarity_graph(data_root):
+    parser = build_parser(data_root)
     actors = [parser.parse_actor(*sample) for sample in samples]
     graph = ActorSimilarityGraph()
     for actor in actors:
@@ -57,19 +53,19 @@ def test_similarity_graph():
 
 
 @skip_on_travisciorg
-def test_shelve_similarity_graph():
-    parser = build_parser()
+def test_shelve_similarity_graph(data_root):
+    parser = build_parser(data_root)
     actors = [parser.parse_actor(*sample) for sample in samples]
     graph = ActorSimilarityGraph()
     for actor in actors:
         graph.add_actor(actor)
-    with shelve.open('data/test-similarity_graph.shelve') as db:
+    with shelve.open(str(data_root / 'test-similarity_graph.shelve')) as db:
         db['similarity_graph'] = graph
 
 
 @skip_on_travisciorg
-def test_unshelve_similarity_graph():
-    with shelve.open('data/test-similarity_graph.shelve') as db:
+def test_unshelve_similarity_graph(data_root):
+    with shelve.open(str(data_root / 'test-similarity_graph.shelve')) as db:
         graph = db['similarity_graph']
     assert graph is not None
     print()

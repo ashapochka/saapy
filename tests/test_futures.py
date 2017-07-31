@@ -2,7 +2,10 @@
 from concurrent.futures import ThreadPoolExecutor, wait
 from time import sleep
 
+import pytest
 
+
+@pytest.mark.skip(reason='executor demo only')
 def test_wait_for_all():
     def f(sleep_time: int):
         sleep(sleep_time)

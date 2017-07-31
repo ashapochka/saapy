@@ -5,9 +5,73 @@ import networkx as nx
 import pyisemail
 from fuzzywuzzy import fuzz
 from recordclass import recordclass
+import pandas as pd
 
-from saapy.util import empty_dict
+import saapy.util as su
 from .lexeme import cleanup_proper_name
+
+
+def connect_actors(actor_frame, connectivity_sets, connectivity_column):
+    """
+    :param actor_frame:
+    :param connectivity_sets:
+    :param connectivity_column:
+    :return:
+
+    Examples:
+
+    same_actors = {
+        'ccason': [3, 14, 15], 'clipka': [4, 5, 13],
+        'wfpokorny': [11, 17], 'anshuarya': [0],
+        'bentsm': [1], 'cbarton': [2], 'dbodor': [6],
+        'jlecher': [7], 'jgrimbert': [8], 'nalvarez': [9],
+        'selvik': [10], 'wverhelst': [12], 'gryken': [16],
+        'github': [18]}
+    actor_frame = connect_actors(actor_frame, same_actors, 'actor_id')
+    """
+    connectivity = {}
+    for actor_id, connectivity_set in connectivity_sets.items():
+        for actor in connectivity_set:
+            connectivity[actor] = actor_id
+    actor_frame[connectivity_column] = su.categorize(pd.Series(connectivity))
+    return actor_frame
+
+
+def combine_actors(actor_frame, connectivity_column):
+    """
+
+    :param actor_frame:
+    :param connectivity_column:
+    :return:
+
+    Examples:
+    combine_actors(actor_frame, 'actor_id')
+    """
+    aggregator = {'name': 'first', 'email': 'first',
+                  'author_commits': 'sum',
+                  'committer_commits': 'sum'}
+    return actor_frame.groupby(connectivity_column).agg(aggregator)
+
+
+def insert_actor_ids(commit_frame, actor_frame, drop_name_email=True):
+    actor_columns = ['author_name', 'author_email',
+                     'committer_name', 'committer_email']
+    cf = commit_frame[actor_columns]
+    af = actor_frame[['name', 'email', 'actor_id']]
+    author = pd.merge(
+        cf, af, left_on=actor_columns[:2],
+        right_on=('name', 'email'),
+        how='left')['actor_id']
+    committer = pd.merge(
+        cf, af, left_on=actor_columns[2:],
+        right_on=('name', 'email'),
+        how='left')['actor_id']
+    commit_frame.insert(3, 'author', author)
+    commit_frame.insert(4, 'committer', committer)
+    if drop_name_email:
+        commit_frame.drop(actor_columns, axis=1, inplace=True)
+    return commit_frame
+
 
 PARSED_EMAIL_FIELDS = ['email', 'valid', 'name', 'domain', 'parsed_name']
 
@@ -57,7 +121,7 @@ class ActorParser:
         :param name: potentially human name
         :return: list of name parts
         """
-        parsed_name = ParsedName(**empty_dict(PARSED_NAME_FIELDS))
+        parsed_name = ParsedName(**su.empty_dict(PARSED_NAME_FIELDS))
         lower_name = name.lower()
         if lower_name in self.role_names:
             parsed_name.name_type = self.role_names[lower_name]
@@ -69,7 +133,7 @@ class ActorParser:
 
     def parse_email(self, email: str) -> ParsedEmail:
         lower_email = email.lower()
-        parsed_email = ParsedEmail(**empty_dict(PARSED_EMAIL_FIELDS))
+        parsed_email = ParsedEmail(**su.empty_dict(PARSED_EMAIL_FIELDS))
         parsed_email.email = lower_email
         parsed_email.valid = pyisemail.is_email(lower_email)
         email_parts = lower_email.split('@')
@@ -78,7 +142,7 @@ class ActorParser:
             parsed_email.domain = email_parts[1]
         else:
             parsed_email.domain = ''
-        parsed_email.parsed_name  = self.parse_name(parsed_email.name)
+        parsed_email.parsed_name = self.parse_name(parsed_email.name)
         return parsed_email
 
     def parse_actor(self, name: str, email: str, name_from_email=True) -> Actor:
@@ -115,6 +179,7 @@ ACTOR_SIMILARITY_SETTINGS_FIELDS = ['min_name_ratio',
 ActorSimilaritySettings = recordclass('ActorSimilaritySettings',
                                       ACTOR_SIMILARITY_SETTINGS_FIELDS)
 
+
 class ActorSimilarityGraph:
     actor_graph: nx.Graph
     settings: ActorSimilaritySettings
@@ -148,7 +213,7 @@ class ActorSimilarityGraph:
                                               confidence=None)
 
     def link_actors(self, actor1_id: str, actor2_id: str,
-                        confidence: float = 1):
+                    confidence: float = 1):
         self.actor_graph.add_edge(actor1_id, actor2_id, confidence=confidence)
         if 'similarity' not in self.actor_graph[actor1_id][actor2_id]:
             self.actor_graph[actor1_id][actor2_id]['similarity'] = None
@@ -166,7 +231,7 @@ class ActorSimilarityGraph:
         return similarity
 
     def build_similarity(self, actor, other_actor):
-        similarity = ActorSimilarity(**empty_dict(ACTOR_SIMILARITY_FIELDS))
+        similarity = ActorSimilarity(**su.empty_dict(ACTOR_SIMILARITY_FIELDS))
         # run comparisons for similarity
         similarity.identical = (actor.actor_id == other_actor.actor_id)
         similarity.proper_name1 = proper(actor.parsed_name)
@@ -233,7 +298,6 @@ class ActorSimilarityGraph:
             if len(group) < 2:
                 continue
             print('=== group', i, '===')
-            for actor1_id, actor2_id, data \
-                    in self.actor_graph.edges_iter(
-                nbunch=group, data=True):
+            for actor1_id, actor2_id, data in self.actor_graph.edges_iter(
+                    nbunch=group, data=True):
                 print(actor1_id, '->', actor2_id, data)

@@ -1,8 +1,10 @@
 # coding=utf-8
+import difflib
 import re
 
 import networkx as nx
 import pandas as pd
+import time
 
 import saapy.util as su
 
@@ -91,48 +93,6 @@ def commits_to_actor_frame(commits):
     return actors
 
 
-def connect_actors(actor_frame, connectivity_sets, connectivity_column):
-    """
-    :param actor_frame:
-    :param connectivity_sets:
-    :param connectivity_column:
-    :return:
-
-    Examples:
-
-    same_actors = {
-        'ccason': [3, 14, 15], 'clipka': [4, 5, 13],
-        'wfpokorny': [11, 17], 'anshuarya': [0],
-        'bentsm': [1], 'cbarton': [2], 'dbodor': [6],
-        'jlecher': [7], 'jgrimbert': [8], 'nalvarez': [9],
-        'selvik': [10], 'wverhelst': [12], 'gryken': [16],
-        'github': [18]}
-    actor_frame = connect_actors(actor_frame, same_actors, 'actor_id')
-    """
-    connectivity = {}
-    for actor_id, connectivity_set in connectivity_sets.items():
-        for actor in connectivity_set:
-            connectivity[actor] = actor_id
-    actor_frame[connectivity_column] = su.categorize(pd.Series(connectivity))
-    return actor_frame
-
-
-def combine_actors(actor_frame, connectivity_column):
-    """
-
-    :param actor_frame:
-    :param connectivity_column:
-    :return:
-
-    Examples:
-    combine_actors(actor_frame, 'actor_id')
-    """
-    aggregator = {'name': 'first', 'email': 'first',
-                  'author_commits': 'sum',
-                  'committer_commits': 'sum'}
-    return actor_frame.groupby(connectivity_column).agg(aggregator)
-
-
 def refs_to_ref_frame(git_refs):
     attrs = {'__class__.__name__': 'ref_type', 'name': 'name',
              'path': 'path', 'commit.hexsha': 'commit'}
@@ -186,26 +146,6 @@ def commit_parents_to_frame(commits):
     return pd.DataFrame(commit_parents, columns=['hexsha', 'parent_hexsha'])
 
 
-def insert_actor_ids(commit_frame, actor_frame, drop_name_email=True):
-    actor_columns = ['author_name', 'author_email',
-                     'committer_name', 'committer_email']
-    cf = commit_frame[actor_columns]
-    af = actor_frame[['name', 'email', 'actor_id']]
-    author = pd.merge(
-        cf, af, left_on=actor_columns[:2],
-        right_on=('name', 'email'),
-        how='left')['actor_id']
-    committer = pd.merge(
-        cf, af, left_on=actor_columns[2:],
-        right_on=('name', 'email'),
-        how='left')['actor_id']
-    commit_frame.insert(3, 'author', author)
-    commit_frame.insert(4, 'committer', committer)
-    if drop_name_email:
-        commit_frame.drop(actor_columns, axis=1, inplace=True)
-    return commit_frame
-
-
 def commit_trees_to_frame(commits):
     frame: pd.DataFrame = pd.concat(
         (commit_tree_to_frame(c) for c in commits))
@@ -242,7 +182,7 @@ def check_file_move(file_path):
         pre_part = m.group(1)
         change_part = m.group(2)
         post_part = m.group(3)
-    except Exception:
+    except (AttributeError, IndexError):
         pre_part = ''
         change_part = file_path
         post_part = ''
@@ -253,7 +193,7 @@ def check_file_move(file_path):
         old_file_name = combine_path_parts(pre_part, old_part, post_part)
         new_file_name = combine_path_parts(pre_part, new_part, post_part)
         return old_file_name, new_file_name
-    except Exception:
+    except (AttributeError, IndexError):
         return change_part, change_part
 
 
@@ -276,14 +216,51 @@ def build_file_move_graph(file_frame):
     return move_graph
 
 
-def build_merge_frame(commit_frame, parent_frame, min_parent_count=2):
+def build_merge_commit_frame(commit_frame, parent_frame, min_parent_count=2):
     parent_count_frame = parent_frame.groupby('hexsha', as_index=False).agg(
         {'parent_hexsha': 'count'})
     multiparent_frame = parent_count_frame[
         parent_count_frame.parent >= min_parent_count]
-    merge_frame = pd.merge(left=commit_frame,
-                           right=multiparent_frame,
-                           left_on='hexsha',
-                           right_on='hexsha',
-                           how='inner')
-    return merge_frame
+    # inner merge
+    merge_commit_frame = pd.merge(
+        left=commit_frame, right=multiparent_frame,
+        left_on='hexsha', right_on='hexsha')
+    return merge_commit_frame
+
+
+def print_commit(commit, with_diff=False):
+    t = time.strftime("%a, %d %b %Y %H:%M", time.gmtime(commit.authored_date))
+    print(commit.hexsha, commit.author.name, t, commit.message)
+    print("stats:", commit.stats.total)
+    print()
+    if with_diff and len(commit.parents):
+        diffs = commit.diff(commit.parents[0])
+        for d in diffs:
+            print(d)
+            b_lines = str(d.b_blob.data_stream.read()).split()
+            a_lines = str(d.a_blob.data_stream.read()).split()
+            differ = difflib.Differ()
+            delta = differ.compare(b_lines, a_lines)
+            for i in delta:
+                print(i)
+            line_number = 0
+            for line in delta:
+                # split off the code
+                code = line[:2]
+                # if the  line is in both files or just a, increment the
+                # line number.
+                if code in ("  ", "+ "):
+                    line_number += 1
+                # if this line is only in a, print the line number and
+                # the text on the line
+                if code == "+ ":
+                    print("%d: %s" % (line_number, line[2:].strip()))
+                    # print(b_lines)
+                    # print(a_lines)
+                    #             dcont = list(difflib.unified_diff(
+                    # b_lines, a_lines, d.b_path, d.a_path))
+                    #             for l in dcont:
+                    #                 print(l)
+            print("------------------------")
+    print("+++++++++++++++++++++++++++++++++++++++++++++++++++++++")
+    print()

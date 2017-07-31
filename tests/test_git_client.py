@@ -5,7 +5,7 @@ import pytest
 from git import Commit
 from networkx.readwrite import json_graph
 
-from saapy.analysis import dump_pretty_json
+from saapy.util import dump_pretty_json
 from saapy.vcs import GitClient
 from vcs import check_file_move
 from .test_utils import skip_on_travisciorg
@@ -15,21 +15,11 @@ sample_revision = '4254c8c'
 graph_json_path = Path('../data/saapy-graph.json')
 
 
-@skip_on_travisciorg
-def test_to_commit():
-    git_client = GitClient(repository_path)
+def test_to_commit(data_root):
+    git_client = GitClient(data_root / '../..')
     commit = git_client.to_commit(sample_revision)
     assert isinstance(commit, Commit)
     assert commit.hexsha.startswith(sample_revision)
-
-
-@skip_on_travisciorg
-def test_build_commit_graph():
-    git_client = GitClient(repository_path)
-    graph = git_client.build_commit_graph()
-    git_client.add_commit_tree(graph, ref_name='origin/master')
-    dump_pretty_json(json_graph.node_link_data(graph.commit_graph),
-                     graph_json_path)
 
 
 def test_file_move_parsing():

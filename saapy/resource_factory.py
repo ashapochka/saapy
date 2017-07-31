@@ -1,6 +1,6 @@
 from .codetools import SonarClient
 from .graphdb import Neo4jClient
-from .vcs import GitClient
+from saapy.vcs import GitClient
 from .codetools import ScitoolsClient
 from .issue import JiraClient
 
