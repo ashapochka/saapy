@@ -1,18 +1,11 @@
 # coding=utf-8
-from pathlib import Path
 
-import pytest
 from git import Commit
-from networkx.readwrite import json_graph
 
-from saapy.util import dump_pretty_json
-from saapy.vcs import GitClient
-from vcs import check_file_move
-from .test_utils import skip_on_travisciorg
+from saapy.vcs import GitClient, check_file_move
 
-repository_path = Path('..').resolve()
+
 sample_revision = '4254c8c'
-graph_json_path = Path('../data/saapy-graph.json')
 
 
 def test_to_commit(data_root):
@@ -36,5 +29,3 @@ def test_file_move_parsing():
             assert old_file_path != new_file_path
         else:
             assert old_file_path == new_file_path
-
-
