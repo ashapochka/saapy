@@ -66,6 +66,7 @@ target/
 
 understand/
 samples/build-word/
+samples/povray-data/
 /data/saapy-graph.json
 data/saapy-graph.json
 data/test.shelve
